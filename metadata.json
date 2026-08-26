@@ -1,0 +1,6 @@
+{
+  "name": "NivaraConnect - Smart Society Platform",
+  "description": "Comprehensive residential society management platform connecting residents, administrators, and security personnel with real-time visitor management, complaint tracking, emergency SOS, billing, notices, and AI assistance.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
