@@ -1,0 +1,21 @@
+{
+  "name": "NivaraConnect",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bullseye",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "NivaraConnect App",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "postCreateCommand": "npm install",
+  "postStartCommand": "nohup npm run dev > /tmp/nivara-dev.log 2>&1 &",
+  "customizations": {
+    "vscode": {
+      "extensions": ["bradlc.vscode-tailwindcss", "dbaeumer.vscode-eslint"]
+    },
+    "codespaces": {
+      "openFiles": ["README.md"]
+    }
+  }
+}
