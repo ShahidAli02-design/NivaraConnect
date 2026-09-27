@@ -8,6 +8,8 @@ import { db } from './server/db';
 dotenv.config();
 
 async function startServer() {
+  await db.load();
+
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 

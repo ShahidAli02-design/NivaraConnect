@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { generateAvatar } from '../src/utils/avatar';
 import fs from 'fs';
 import path from 'path';
+import { Pool } from 'pg';
 import {
   User, Apartment, Visitor, Complaint, Notice, SOSAlert,
   MaintenanceBill, Amenity, AmenityBooking, ForumPost,
@@ -675,8 +676,15 @@ export class NivaraDatabase {
     }
   ];
 
-  // ---- Persistence: everything below is saved to disk so data survives restarts ----
+  // ---- Persistence ----
+  // If DATABASE_URL is set, the whole in-memory state is stored as one JSONB
+  // row in Postgres (Neon) — real, durable storage that survives host
+  // restarts/redeploys, unlike a container's local disk. Without it, falls
+  // back to a local data/db.json file (handy for offline development).
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private pgPool: Pool | null = process.env.DATABASE_URL
+    ? new Pool({ connectionString: process.env.DATABASE_URL, max: 3 })
+    : null;
 
   private static readonly PERSISTED = [
     'users', 'apartments', 'visitors', 'complaints', 'notices', 'sosAlerts', 'bills',
@@ -688,26 +696,62 @@ export class NivaraDatabase {
     return process.env.DATA_FILE || path.join(process.cwd(), 'data', 'db.json');
   }
 
-  load() {
+  private applySnapshot(saved: Record<string, unknown>) {
+    for (const key of NivaraDatabase.PERSISTED) {
+      if (Array.isArray(saved[key])) (this as any)[key] = saved[key];
+    }
+  }
+
+  private buildSnapshot(): Record<string, unknown> {
+    const snapshot: Record<string, unknown> = {};
+    for (const key of NivaraDatabase.PERSISTED) snapshot[key] = (this as any)[key];
+    return snapshot;
+  }
+
+  async load() {
+    if (this.pgPool) {
+      try {
+        const { rows } = await this.pgPool.query('SELECT data FROM app_state WHERE id = $1', ['main']);
+        if (rows[0]?.data) {
+          this.applySnapshot(rows[0].data);
+          console.log('Loaded saved data from Postgres');
+        } else {
+          console.log('No saved data in Postgres yet — starting from seed data');
+        }
+      } catch (e) {
+        console.error('Could not load saved data from Postgres, starting from seed data:', e);
+      }
+      return;
+    }
+
     try {
       if (!fs.existsSync(this.dataFile)) return;
       const saved = JSON.parse(fs.readFileSync(this.dataFile, 'utf8'));
-      for (const key of NivaraDatabase.PERSISTED) {
-        if (Array.isArray(saved[key])) (this as any)[key] = saved[key];
-      }
+      this.applySnapshot(saved);
       console.log('Loaded saved data from ' + this.dataFile);
     } catch (e) {
       console.error('Could not load saved data, starting from seed data:', e);
     }
   }
 
-  saveNow() {
+  async saveNow() {
+    if (this.pgPool) {
+      try {
+        await this.pgPool.query(
+          `INSERT INTO app_state (id, data, updated_at) VALUES ('main', $1, now())
+           ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = now()`,
+          [JSON.stringify(this.buildSnapshot())]
+        );
+      } catch (e) {
+        console.error('Could not save data to Postgres:', e);
+      }
+      return;
+    }
+
     try {
-      const snapshot: Record<string, unknown> = {};
-      for (const key of NivaraDatabase.PERSISTED) snapshot[key] = (this as any)[key];
       fs.mkdirSync(path.dirname(this.dataFile), { recursive: true });
       const tmp = this.dataFile + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(snapshot));
+      fs.writeFileSync(tmp, JSON.stringify(this.buildSnapshot()));
       fs.renameSync(tmp, this.dataFile);
     } catch (e) {
       console.error('Could not save data:', e);
@@ -716,7 +760,9 @@ export class NivaraDatabase {
 
   scheduleSave() {
     if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.saveNow(), 300);
+    this.saveTimer = setTimeout(() => {
+      this.saveNow().catch(e => console.error('Scheduled save failed:', e));
+    }, 300);
   }
 
   getStats(): SocietyStats {
@@ -752,5 +798,3 @@ export class NivaraDatabase {
 }
 
 export const db = new NivaraDatabase();
-db.load();
-process.on('exit', () => db.saveNow());
