@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { RealtimeEvent, Visitor, SOSAlert, Notice } from '../types';
 import { useAuth } from './AuthContext';
+import { API_BASE } from '../services/api';
 
 interface ToastNotification {
   id: string;
@@ -152,7 +153,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // SSE Stream Listener
   useEffect(() => {
     const aptQuery = currentUser.apartmentId ? `?apartmentId=${currentUser.apartmentId}` : '';
-    const eventSource = new EventSource(`/api/realtime/stream${aptQuery}`);
+    const eventSource = new EventSource(`${API_BASE}/realtime/stream${aptQuery}`, { withCredentials: false });
 
     eventSource.onopen = () => {
       setIsConnected(true);

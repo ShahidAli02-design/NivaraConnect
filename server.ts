@@ -16,6 +16,19 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
+  // Allow the API to be called from a separately-hosted frontend (GitHub
+  // Pages, a Codespaces preview URL, etc). No cookies/sessions are used —
+  // auth is a plain email+password check, the client holds the user object
+  // itself — so a permissive origin here doesn't expose any credential.
+  app.use('/api', (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
+
   // Persist data after every write request (POST/PATCH/PUT/DELETE)
   app.use('/api', (req, res, next) => {
     if (req.method !== 'GET') res.on('finish', () => db.scheduleSave());

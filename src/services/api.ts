@@ -5,7 +5,10 @@ import {
   ParkingSlot, ResidentPass, ResidentEntry
 } from '../types';
 
-const API_BASE = '/api';
+// Normally the frontend and API share an origin, so a relative path is enough.
+// For a separately-hosted frontend (GitHub Pages), VITE_API_BASE_URL points
+// this at the live backend instead — see src/vite-env.d.ts.
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   try {
