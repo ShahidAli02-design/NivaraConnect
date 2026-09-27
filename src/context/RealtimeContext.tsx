@@ -237,6 +237,33 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (data.type === 'COMPLAINT_CREATED' || data.type === 'COMPLAINT_UPDATED') {
           // just refreshes dashboard
         }
+
+        // 7. New Account Signup Request (Secretary only)
+        if (data.type === 'NEW_SIGNUP_REQUEST' && currentUser.role === 'admin') {
+          addNotification({
+            type: 'info',
+            title: 'New Account Request',
+            message: `${data.payload?.name || 'A new user'} has requested a ${data.payload?.role || 'resident'} account.`,
+          });
+        }
+
+        // 7b. New maintenance bill for this resident's flat
+        if (data.type === 'BILL_CREATED' && currentUser.role === 'resident' && data.payload?.apartmentId === currentUser.apartmentId) {
+          addNotification({
+            type: 'warning',
+            title: 'New Maintenance Bill',
+            message: `${data.payload.month || data.payload.billingMonth}: ₹${data.payload.totalAmount} due by ${data.payload.dueDate}.`,
+          });
+        }
+
+        // 8. Signup Request Approved/Rejected
+        if (data.type === 'SIGNUP_REQUEST_UPDATED' && data.payload?.status === 'approved') {
+          addNotification({
+            type: 'success',
+            title: 'Account Approved',
+            message: `${data.payload?.name || 'A resident'}'s account request was approved.`,
+          });
+        }
       } catch (e) {
         console.error('Error handling SSE payload:', e);
       }

@@ -1,11 +1,36 @@
-import { 
-  User, Apartment, Visitor, Complaint, Notice, SOSAlert, 
-  MaintenanceBill, Amenity, AmenityBooking, ForumPost, 
-  SocietyStaff, SocietyStats, RealtimeEvent, PublicSuggestion 
+import bcrypt from 'bcryptjs';
+import { generateAvatar } from '../src/utils/avatar';
+import fs from 'fs';
+import path from 'path';
+import {
+  User, Apartment, Visitor, Complaint, Notice, SOSAlert,
+  MaintenanceBill, Amenity, AmenityBooking, ForumPost,
+  SocietyStaff, SocietyStats, RealtimeEvent, PublicSuggestion,
+  SignupRequest, ParkingSlot, ResidentEntry
 } from '../src/types';
+
+// Demo seed accounts all share this password so the reviewer can log in immediately.
+const DEMO_PASSWORD_HASH = bcrypt.hashSync('Nivara@123', 10);
 
 // In-Memory Real-Time Database with Seed Data for Nivara Heights
 export class NivaraDatabase {
+  signupRequests: SignupRequest[] = [];
+
+  residentEntries: ResidentEntry[] = [];
+
+  parkingSlots: ParkingSlot[] = [
+    ...['G-01','G-02','G-03','G-04','G-05','G-06','G-07','G-08'].map((label): ParkingSlot => ({
+      id: 'pk-' + label.toLowerCase(), label, zone: 'Guest', status: 'Free',
+    })),
+    { id: 'pk-p-a402', label: 'P-A402', zone: 'Resident', status: 'Occupied', vehicleNumber: 'MH-27-AZ-4509', occupantName: 'Aditya Sharma', apartmentId: 'A-402', since: new Date(Date.now() - 6 * 3600000).toISOString() },
+    { id: 'pk-p-b101', label: 'P-B101', zone: 'Resident', status: 'Occupied', vehicleNumber: 'MH-27-CF-8821', occupantName: 'Pooja Verma', apartmentId: 'B-101', since: new Date(Date.now() - 10 * 3600000).toISOString() },
+    { id: 'pk-p-c304', label: 'P-C304', zone: 'Resident', status: 'Free' },
+    { id: 'pk-p-a401', label: 'P-A401', zone: 'Resident', status: 'Occupied', vehicleNumber: 'MH-27-AB-9900', occupantName: 'Prof. Rajesh Kulkarni', apartmentId: 'A-401', since: new Date(Date.now() - 3 * 3600000).toISOString() },
+    { id: 'pk-p-2w-24', label: 'P-2W-24', zone: 'Resident', status: 'Occupied', vehicleNumber: 'MH-27-BK-1102', occupantName: 'Aditya Sharma', apartmentId: 'A-402', since: new Date(Date.now() - 8 * 3600000).toISOString() },
+    { id: 'pk-p-2w-51', label: 'P-2W-51', zone: 'Resident', status: 'Free' },
+  ];
+
+
   suggestions: PublicSuggestion[] = [
     {
       id: 'sug-1',
@@ -33,12 +58,13 @@ export class NivaraDatabase {
       name: 'Prof. Rajesh Kulkarni',
       email: 'secretary@nivara.com',
       phone: '+91 98230 45678',
+      passwordHash: DEMO_PASSWORD_HASH,
       role: 'admin',
       apartmentId: 'A-401',
       wing: 'A',
       flatNumber: '401',
       residentType: 'owner',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      avatarUrl: generateAvatar('Prof. Rajesh Kulkarni'),
       familyMembersCount: 3,
       vehiclesCount: 2,
     },
@@ -47,12 +73,13 @@ export class NivaraDatabase {
       name: 'Aditya Sharma',
       email: 'aditya.sharma@example.com',
       phone: '+91 98765 43210',
+      passwordHash: DEMO_PASSWORD_HASH,
       role: 'resident',
       apartmentId: 'A-402',
       wing: 'A',
       flatNumber: '402',
       residentType: 'owner',
-      avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
+      avatarUrl: generateAvatar('Aditya Sharma'),
       familyMembersCount: 4,
       vehiclesCount: 2,
     },
@@ -61,12 +88,13 @@ export class NivaraDatabase {
       name: 'Pooja Verma',
       email: 'pooja.verma@example.com',
       phone: '+91 98112 33445',
+      passwordHash: DEMO_PASSWORD_HASH,
       role: 'resident',
       apartmentId: 'B-101',
       wing: 'B',
       flatNumber: '101',
       residentType: 'tenant',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+      avatarUrl: generateAvatar('Pooja Verma'),
       familyMembersCount: 2,
       vehiclesCount: 1,
     },
@@ -75,12 +103,13 @@ export class NivaraDatabase {
       name: 'Sunil Deshmukh',
       email: 'sunil.d@example.com',
       phone: '+91 94221 88990',
+      passwordHash: DEMO_PASSWORD_HASH,
       role: 'resident',
       apartmentId: 'C-304',
       wing: 'C',
       flatNumber: '304',
       residentType: 'owner',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+      avatarUrl: generateAvatar('Sunil Deshmukh'),
       familyMembersCount: 3,
       vehiclesCount: 2,
     },
@@ -89,8 +118,9 @@ export class NivaraDatabase {
       name: 'Ramesh Bahadur (Head Guard)',
       email: 'gate1@nivara.com',
       phone: '+91 91234 56789',
+      passwordHash: DEMO_PASSWORD_HASH,
       role: 'security',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+      avatarUrl: generateAvatar('Ramesh Bahadur (Head Guard)'),
     }
   ];
 
@@ -614,7 +644,7 @@ export class NivaraDatabase {
       phone: '+91 91234 56789',
       shift: 'Morning (6 AM - 2 PM)',
       status: 'On Duty',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+      avatarUrl: generateAvatar('Ramesh Bahadur'),
     },
     {
       id: 'st-2',
@@ -623,7 +653,7 @@ export class NivaraDatabase {
       phone: '+91 91234 56790',
       shift: 'Evening (2 PM - 10 PM)',
       status: 'On Duty',
-      avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+      avatarUrl: generateAvatar('Dinesh Gurung'),
     },
     {
       id: 'st-3',
@@ -632,7 +662,7 @@ export class NivaraDatabase {
       phone: '+91 98221 77665',
       shift: 'General (9 AM - 6 PM)',
       status: 'On Duty',
-      avatarUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80',
+      avatarUrl: generateAvatar('Suresh Kumar'),
     },
     {
       id: 'st-4',
@@ -641,14 +671,61 @@ export class NivaraDatabase {
       phone: '+91 98224 44556',
       shift: 'General (9 AM - 6 PM)',
       status: 'On Duty',
-      avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+      avatarUrl: generateAvatar('Vinod Mestry'),
     }
   ];
 
+  // ---- Persistence: everything below is saved to disk so data survives restarts ----
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private static readonly PERSISTED = [
+    'users', 'apartments', 'visitors', 'complaints', 'notices', 'sosAlerts', 'bills',
+    'amenities', 'amenityBookings', 'forumPosts', 'staff', 'suggestions',
+    'signupRequests', 'residentEntries', 'parkingSlots',
+  ] as const;
+
+  get dataFile(): string {
+    return process.env.DATA_FILE || path.join(process.cwd(), 'data', 'db.json');
+  }
+
+  load() {
+    try {
+      if (!fs.existsSync(this.dataFile)) return;
+      const saved = JSON.parse(fs.readFileSync(this.dataFile, 'utf8'));
+      for (const key of NivaraDatabase.PERSISTED) {
+        if (Array.isArray(saved[key])) (this as any)[key] = saved[key];
+      }
+      console.log('Loaded saved data from ' + this.dataFile);
+    } catch (e) {
+      console.error('Could not load saved data, starting from seed data:', e);
+    }
+  }
+
+  saveNow() {
+    try {
+      const snapshot: Record<string, unknown> = {};
+      for (const key of NivaraDatabase.PERSISTED) snapshot[key] = (this as any)[key];
+      fs.mkdirSync(path.dirname(this.dataFile), { recursive: true });
+      const tmp = this.dataFile + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(snapshot));
+      fs.renameSync(tmp, this.dataFile);
+    } catch (e) {
+      console.error('Could not save data:', e);
+    }
+  }
+
+  scheduleSave() {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.saveNow(), 300);
+  }
+
   getStats(): SocietyStats {
-    const totalFlats = 120;
-    const occupiedFlats = 108;
-    const totalResidents = 342;
+    const totalFlats = this.apartments.length;
+    const occupiedFlats = this.apartments.filter(a => a.occupantType !== 'vacant').length;
+    const totalResidents = this.apartments.reduce(
+      (sum, a) => sum + (a.occupantType !== 'vacant' ? 1 : 0) + a.familyMembers.length,
+      0
+    );
     const activeVisitorsInside = this.visitors.filter(v => v.status === 'Inside').length;
     const pendingApprovals = this.visitors.filter(v => v.status === 'Waiting Approval' || v.status === 'Pre-Approved').length;
     const openComplaints = this.complaints.filter(c => c.status === 'Open' || c.status === 'In Progress').length;
@@ -657,6 +734,7 @@ export class NivaraDatabase {
     const paidBills = this.bills.filter(b => b.status === 'Paid').length;
     const maintenanceCollectionRate = totalBills > 0 ? Math.round((paidBills / totalBills) * 100) : 100;
     const totalCollectionMonth = this.bills.filter(b => b.status === 'Paid').reduce((sum, b) => sum + b.totalAmount, 0);
+    const pendingAccountApprovals = this.signupRequests.filter(s => s.status === 'pending').length;
 
     return {
       totalFlats,
@@ -668,8 +746,11 @@ export class NivaraDatabase {
       activeSosCount,
       maintenanceCollectionRate,
       totalCollectionMonth,
+      pendingAccountApprovals,
     };
   }
 }
 
 export const db = new NivaraDatabase();
+db.load();
+process.on('exit', () => db.saveNow());

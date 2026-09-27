@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  Building2, ShieldCheck, ShieldAlert, Sparkles, UserCheck, 
-  Wrench, Bell, ArrowRight, CheckCircle2, ChevronRight, 
-  Send, Phone, Radio, KeyRound, Lock, User, Megaphone, 
-  Droplets, QrCode, Zap, Compass, Menu, X, Home, MapPin, 
-  Calendar, Layers, MessageSquare, Award, ArrowUpRight
+import {
+  Building2, ShieldCheck, ShieldAlert, Sparkles, UserCheck,
+  Wrench, Bell, ArrowRight, CheckCircle2, ChevronRight,
+  Send, Phone, Radio, KeyRound, Lock, User, Megaphone,
+  Droplets, QrCode, Zap, Compass, Menu, X, Home, MapPin,
+  Calendar, Layers, MessageSquare, Award, ArrowUpRight,
+  UserPlus, AlertCircle, Loader2, Mail, Clock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -21,21 +22,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenSos,
   onOpenAi,
 }) => {
-  const { users, switchRole } = useAuth();
-  
+  const { loginUser, registerUser } = useAuth();
+
   // Navigation & UI States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showBulletinsDropdown, setShowBulletinsDropdown] = useState(false);
   const [towerFilter, setTowerFilter] = useState<'all' | 'tower-a' | 'tower-b' | 'tower-c'>('all');
-  
-  // Role Login Modal State
+
+  // Login / Sign Up Modal State
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [authView, setAuthView] = useState<'login' | 'signup' | 'signup-success'>('login');
   const [selectedRole, setSelectedRole] = useState<UserRole>('resident');
+
+  // Login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [apartmentUnit, setApartmentUnit] = useState('A-402');
-  const [adminKey, setAdminKey] = useState('SEC-2026');
-  const [guardBadge, setGuardBadge] = useState('GUARD-01');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Sign up form
+  const [suName, setSuName] = useState('');
+  const [suEmail, setSuEmail] = useState('');
+  const [suPhone, setSuPhone] = useState('');
+  const [suPassword, setSuPassword] = useState('');
+  const [suConfirmPassword, setSuConfirmPassword] = useState('');
+  const [suApartmentUnit, setSuApartmentUnit] = useState('A-402');
+  const [suResidentType, setSuResidentType] = useState<'owner' | 'tenant'>('owner');
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  const [signupError, setSignupError] = useState<string | null>(null);
+  const [signupMessage, setSignupMessage] = useState<string | null>(null);
 
   // Suggestion Form State
   const [sugName, setSugName] = useState('');
@@ -51,39 +66,74 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  const resetAuthForms = () => {
+    setLoginPassword('');
+    setLoginError(null);
+    setSuName(''); setSuEmail(''); setSuPhone(''); setSuPassword(''); setSuConfirmPassword('');
+    setSignupError(null); setSignupMessage(null);
+  };
+
   const handleOpenLogin = (role: UserRole = 'resident') => {
     setSelectedRole(role);
-    if (role === 'admin') {
-      const adminUser = users.find(u => u.role === 'admin');
-      if (adminUser) setLoginEmail(adminUser.email);
-    } else if (role === 'security') {
-      const secUser = users.find(u => u.role === 'security');
-      if (secUser) setLoginEmail(secUser.email);
-    } else {
-      const resUser = users.find(u => u.role === 'resident');
-      if (resUser) setLoginEmail(resUser.email);
-    }
+    setAuthView('login');
+    resetAuthForms();
     setIsLoginModalOpen(true);
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const targetUser = users.find(u => u.role === selectedRole);
-    if (targetUser) {
-      switchRole(targetUser.id);
-    }
-    setIsLoginModalOpen(false);
-    showToast(`Welcome back! Logged in as ${selectedRole.toUpperCase()}.`);
-    onEnterDashboard(selectedRole);
+  const handleOpenSignup = (role: UserRole = 'resident') => {
+    setSelectedRole(role);
+    setAuthView('signup');
+    resetAuthForms();
+    setIsLoginModalOpen(true);
   };
 
-  const handleDirectQuickLogin = (role: UserRole) => {
-    const targetUser = users.find(u => u.role === role);
-    if (targetUser) {
-      switchRole(targetUser.id);
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    setIsLoggingIn(true);
+    try {
+      const user = await loginUser(loginEmail, loginPassword);
+      setIsLoginModalOpen(false);
+      showToast(`Welcome back, ${user.name.split(' ')[0]}!`);
+      onEnterDashboard(user.role);
+    } catch (err: any) {
+      setLoginError(err?.message || 'Invalid email or password.');
+    } finally {
+      setIsLoggingIn(false);
     }
-    showToast(`Switched to ${role.toUpperCase()} Workspace.`);
-    onEnterDashboard(role);
+  };
+
+  const handleSignupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSignupError(null);
+
+    if (suPassword.length < 6) {
+      setSignupError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (suPassword !== suConfirmPassword) {
+      setSignupError('Passwords do not match.');
+      return;
+    }
+
+    setIsSigningUp(true);
+    try {
+      const message = await registerUser({
+        name: suName,
+        email: suEmail,
+        password: suPassword,
+        phone: suPhone,
+        role: selectedRole,
+        apartmentId: selectedRole === 'resident' ? suApartmentUnit : undefined,
+        residentType: selectedRole === 'resident' ? suResidentType : undefined,
+      });
+      setSignupMessage(message);
+      setAuthView('signup-success');
+    } catch (err: any) {
+      setSignupError(err?.message || 'Could not submit your request. Please try again.');
+    } finally {
+      setIsSigningUp(false);
+    }
   };
 
   const handleSuggestionSubmit = async (e: React.FormEvent) => {
@@ -270,13 +320,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <span>Login</span>
               </button>
 
-              {/* Direct Dashboard Entry Button */}
+              {/* Sign Up Button */}
               <button
-                onClick={() => handleDirectQuickLogin('resident')}
+                onClick={() => handleOpenSignup('resident')}
                 className="hidden sm:flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold text-xs shadow-md transition-all hover:scale-105"
               >
-                <span>Dashboard</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Sign Up</span>
               </button>
 
               {/* Mobile Menu Toggle */}
@@ -300,11 +350,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <a href="#suggestions" onClick={() => setMobileMenuOpen(false)} className="block text-sm font-medium text-slate-700">Suggestion Desk</a>
             <a href="#contact" onClick={() => setMobileMenuOpen(false)} className="block text-sm font-medium text-slate-700">Emergency & Contact</a>
             <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
-              <button 
+              <button
                 onClick={() => { setMobileMenuOpen(false); handleOpenLogin('resident'); }}
                 className="w-full py-2.5 bg-gold-gradient text-white font-bold text-xs rounded-xl shadow-md"
               >
                 Open Portal Login
+              </button>
+              <button
+                onClick={() => { setMobileMenuOpen(false); handleOpenSignup('resident'); }}
+                className="w-full py-2.5 bg-slate-900 text-amber-300 font-bold text-xs rounded-xl shadow-md"
+              >
+                Create New Account
               </button>
             </div>
           </div>
@@ -339,7 +395,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <button
-                  onClick={() => handleDirectQuickLogin('resident')}
+                  onClick={() => handleOpenLogin('resident')}
                   className="btn-gold px-7 py-3.5 rounded-2xl font-bold text-sm flex items-center gap-2.5 shadow-xl shadow-amber-500/25 group"
                 >
                   <span>Explore Dashboard</span>
@@ -432,21 +488,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {/* Direct Role Portal Jump Buttons */}
                 <div className="mt-6 pt-5 border-t border-amber-100 grid grid-cols-3 gap-2">
                   <button
-                    onClick={() => handleDirectQuickLogin('resident')}
+                    onClick={() => handleOpenLogin('resident')}
                     className="p-2.5 rounded-xl bg-white hover:bg-amber-50 border border-amber-200 text-center transition-all group"
                   >
                     <p className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-amber-700">Resident</p>
                     <p className="text-xs font-black text-slate-800">Flat A-402</p>
                   </button>
                   <button
-                    onClick={() => handleDirectQuickLogin('admin')}
+                    onClick={() => handleOpenLogin('admin')}
                     className="p-2.5 rounded-xl bg-white hover:bg-amber-50 border border-amber-200 text-center transition-all group"
                   >
                     <p className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-amber-700">Secretary</p>
                     <p className="text-xs font-black text-slate-800">Admin Desk</p>
                   </button>
                   <button
-                    onClick={() => handleDirectQuickLogin('security')}
+                    onClick={() => handleOpenLogin('security')}
                     className="p-2.5 rounded-xl bg-white hover:bg-amber-50 border border-amber-200 text-center transition-all group"
                   >
                     <p className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-amber-700">Security</p>
@@ -516,7 +572,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </p>
               </div>
               <button
-                onClick={() => handleDirectQuickLogin('admin')}
+                onClick={() => handleOpenLogin('admin')}
                 className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-amber-700 hover:text-amber-800 group"
               >
                 <span>Access Admin Console</span>
@@ -536,7 +592,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </p>
               </div>
               <button
-                onClick={() => handleDirectQuickLogin('resident')}
+                onClick={() => handleOpenLogin('resident')}
                 className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-amber-700 hover:text-amber-800 group"
               >
                 <span>Open Resident Hub</span>
@@ -556,7 +612,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </p>
               </div>
               <button
-                onClick={() => handleDirectQuickLogin('security')}
+                onClick={() => handleOpenLogin('security')}
                 className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-amber-700 hover:text-amber-800 group"
               >
                 <span>Launch Guard Desk</span>
@@ -667,7 +723,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
 
                 <button
-                  onClick={() => handleDirectQuickLogin('resident')}
+                  onClick={() => handleOpenLogin('resident')}
                   className="mt-6 w-full py-3 rounded-xl bg-white hover:bg-amber-50 border border-amber-300 text-amber-800 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors"
                 >
                   <span>View Apartment Details</span>
@@ -812,7 +868,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <ul className="space-y-2.5 text-xs">
                 <li>
                   <button 
-                    onClick={() => handleDirectQuickLogin('admin')} 
+                    onClick={() => handleOpenLogin('admin')} 
                     className="hover:text-amber-400 transition-colors text-left"
                   >
                     Society Admin Portal
@@ -820,7 +876,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </li>
                 <li>
                   <button 
-                    onClick={() => handleDirectQuickLogin('resident')} 
+                    onClick={() => handleOpenLogin('resident')} 
                     className="hover:text-amber-400 transition-colors text-left"
                   >
                     Resident Dashboard
@@ -828,7 +884,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </li>
                 <li>
                   <button 
-                    onClick={() => handleDirectQuickLogin('security')} 
+                    onClick={() => handleOpenLogin('security')} 
                     className="hover:text-amber-400 transition-colors text-left"
                   >
                     Security Guard Desk
@@ -865,11 +921,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </footer>
 
-      {/* Role Login Modal Popup */}
+      {/* Login / Sign Up Modal Popup */}
       {isLoginModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md p-7 shadow-2xl border border-amber-300 relative animate-in zoom-in-95">
-            
+          <div className="bg-white rounded-3xl w-full max-w-md p-7 shadow-2xl border border-amber-300 relative animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+
             {/* Close Button */}
             <button
               onClick={() => setIsLoginModalOpen(false)}
@@ -878,117 +934,270 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <X className="w-4 h-4" />
             </button>
 
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-gold-gradient text-white flex items-center justify-center mx-auto mb-3 shadow-md shadow-amber-500/30">
-                <Lock className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-black text-slate-900">Portal Login</h3>
-              <p className="text-xs text-slate-500 mt-1">Select your registered role to log in securely.</p>
-            </div>
-
-            {/* Role Switcher Tabs */}
-            <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-slate-100 rounded-2xl mb-5 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setSelectedRole('resident')}
-                className={`py-2 rounded-xl transition-all ${
-                  selectedRole === 'resident' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Resident
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRole('admin')}
-                className={`py-2 rounded-xl transition-all ${
-                  selectedRole === 'admin' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Secretary
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRole('security')}
-                className={`py-2 rounded-xl transition-all ${
-                  selectedRole === 'security' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Security
-              </button>
-            </div>
-
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Email / Username</label>
-                <input
-                  type="text"
-                  required
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="Enter email or username"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
-                <input
-                  type="password"
-                  required
-                  value={loginPassword || '••••••••'}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-                />
-              </div>
-
-              {selectedRole === 'resident' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Apartment / Unit No.</label>
-                  <input
-                    type="text"
-                    value={apartmentUnit}
-                    onChange={(e) => setApartmentUnit(e.target.value)}
-                    placeholder="e.g. A-402"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-                  />
+            {authView === 'signup-success' ? (
+              /* --- Sign Up Success / Pending Approval Panel --- */
+              <div className="text-center py-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center mx-auto mb-4 shadow-md shadow-emerald-500/30">
+                  <Clock className="w-7 h-7" />
                 </div>
-              )}
-
-              {selectedRole === 'admin' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Admin Security Key</label>
-                  <input
-                    type="text"
-                    value={adminKey}
-                    onChange={(e) => setAdminKey(e.target.value)}
-                    placeholder="e.g. SEC-2026"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-                  />
+                <h3 className="text-xl font-black text-slate-900">Request Submitted!</h3>
+                <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                  {signupMessage || 'Your account request has been sent to the Society Secretary for approval.'}
+                </p>
+                <p className="text-xs text-slate-500 mt-3">
+                  Once the Secretary approves your request, you can log in with the email and password you just created.
+                </p>
+                <button
+                  onClick={() => { setAuthView('login'); resetAuthForms(); }}
+                  className="w-full mt-6 py-3 bg-gold-gradient text-white font-bold text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2"
+                >
+                  <span>Back to Login</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-gold-gradient text-white flex items-center justify-center mx-auto mb-3 shadow-md shadow-amber-500/30">
+                    {authView === 'login' ? <Lock className="w-6 h-6" /> : <UserPlus className="w-6 h-6" />}
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900">
+                    {authView === 'login' ? 'Portal Login' : 'Create Your Account'}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {authView === 'login'
+                      ? 'Log in with the email and password you registered with.'
+                      : 'New accounts are activated only after Secretary approval.'}
+                  </p>
                 </div>
-              )}
 
-              {selectedRole === 'security' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Guard Passcode / Badge #</label>
-                  <input
-                    type="text"
-                    value={guardBadge}
-                    onChange={(e) => setGuardBadge(e.target.value)}
-                    placeholder="e.g. GUARD-01"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-                  />
+                {/* Login vs Sign Up Tabs */}
+                <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-100 rounded-2xl mb-5 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => { setAuthView('login'); setLoginError(null); }}
+                    className={`py-2 rounded-xl transition-all ${
+                      authView === 'login' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Log In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthView('signup'); setSignupError(null); }}
+                    className={`py-2 rounded-xl transition-all ${
+                      authView === 'signup' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Create Account
+                  </button>
                 </div>
-              )}
 
-              <button
-                type="submit"
-                className="w-full mt-2 py-3 bg-gold-gradient text-white font-bold text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2"
-              >
-                <span>Access Portal</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
+                {/* Role Selector */}
+                <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-amber-50 border border-amber-200 rounded-2xl mb-5 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('resident')}
+                    className={`py-2 rounded-xl transition-all ${
+                      selectedRole === 'resident' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Resident
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('admin')}
+                    className={`py-2 rounded-xl transition-all ${
+                      selectedRole === 'admin' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Secretary
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('security')}
+                    className={`py-2 rounded-xl transition-all ${
+                      selectedRole === 'security' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Security
+                  </button>
+                </div>
+
+                {authView === 'login' ? (
+                  /* --- LOG IN FORM --- */
+                  <form onSubmit={handleLoginSubmit} className="space-y-4">
+                    {loginError && (
+                      <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{loginError}</span>
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
+                      <input
+                        type="email"
+                        required
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isLoggingIn}
+                      className="w-full mt-2 py-3 bg-gold-gradient text-white font-bold text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 disabled:opacity-60"
+                    >
+                      {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <>
+                        <span>Access Portal</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>}
+                    </button>
+
+                    <p className="text-center text-[11px] text-slate-400">
+                      New here?{' '}
+                      <button type="button" onClick={() => { setAuthView('signup'); setSignupError(null); }} className="text-amber-700 font-bold hover:underline">
+                        Create an account
+                      </button>
+                    </p>
+                  </form>
+                ) : (
+                  /* --- SIGN UP FORM --- */
+                  <form onSubmit={handleSignupSubmit} className="space-y-4">
+                    {signupError && (
+                      <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{signupError}</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={suName}
+                        onChange={(e) => setSuName(e.target.value)}
+                        placeholder="e.g. Aditya Sharma"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
+                        <input
+                          type="email"
+                          required
+                          value={suEmail}
+                          onChange={(e) => setSuEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Phone</label>
+                        <input
+                          type="text"
+                          value={suPhone}
+                          onChange={(e) => setSuPhone(e.target.value)}
+                          placeholder="+91 98765 43210"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
+                        <input
+                          type="password"
+                          required
+                          value={suPassword}
+                          onChange={(e) => setSuPassword(e.target.value)}
+                          placeholder="Min. 6 characters"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Confirm Password</label>
+                        <input
+                          type="password"
+                          required
+                          value={suConfirmPassword}
+                          onChange={(e) => setSuConfirmPassword(e.target.value)}
+                          placeholder="Re-enter password"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    {selectedRole === 'resident' && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Apartment / Unit No.</label>
+                          <input
+                            type="text"
+                            value={suApartmentUnit}
+                            onChange={(e) => setSuApartmentUnit(e.target.value)}
+                            placeholder="e.g. A-402"
+                            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Occupant Type</label>
+                          <select
+                            value={suResidentType}
+                            onChange={(e) => setSuResidentType(e.target.value as 'owner' | 'tenant')}
+                            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                          >
+                            <option value="owner">Owner</option>
+                            <option value="tenant">Tenant</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-medium leading-relaxed">
+                      <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                      <span>Your request will be sent to the Society Secretary's dashboard. Your account is created only after it is approved there.</span>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSigningUp}
+                      className="w-full mt-1 py-3 bg-gold-gradient text-white font-bold text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 disabled:opacity-60"
+                    >
+                      {isSigningUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <>
+                        <span>Submit for Approval</span>
+                        <Send className="w-4 h-4" />
+                      </>}
+                    </button>
+
+                    <p className="text-center text-[11px] text-slate-400">
+                      Already have an account?{' '}
+                      <button type="button" onClick={() => { setAuthView('login'); setLoginError(null); }} className="text-amber-700 font-bold hover:underline">
+                        Log in
+                      </button>
+                    </p>
+                  </form>
+                )}
+              </>
+            )}
 
           </div>
         </div>

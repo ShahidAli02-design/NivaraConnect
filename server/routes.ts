@@ -1,7 +1,84 @@
 import { Router, Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { db } from './db';
+import { isValidAadhaar, AADHAAR_ERROR } from '../src/utils/aadhaar';
+import { generateAvatar } from '../src/utils/avatar';
+import { createParkingAndPassRouter, releaseSlot } from './parkingAndPasses';
+import { createBillingRouter, normalizeBill } from './billingAdmin';
 import { askSocietyAiAssistant, triageComplaintAi, draftNoticeAi } from './gemini';
-import { RealtimeEvent, Visitor, Complaint, SOSAlert, Notice, MaintenanceBill, AmenityBooking, ForumPost } from '../src/types';
+import { RealtimeEvent, Visitor, Complaint, SOSAlert, Notice, MaintenanceBill, AmenityBooking, ForumPost, User, SignupRequest } from '../src/types';
+
+// Never leak password hashes to the client
+function sanitizeUser(user: User) {
+  const { passwordHash, ...safe } = user;
+  return safe;
+}
+
+function sanitizeSignupRequest(req: SignupRequest) {
+  const { passwordHash, ...safe } = req;
+  return safe;
+}
+
+// Loose name comparison: case-insensitive, ignores titles/punctuation/extra spaces
+// so "Dr. Alok Mehta" and "alok   mehta" are treated the same, but genuinely
+// different names are still caught.
+function normalizeName(name: string): string {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\b(mr|mrs|ms|miss|dr|prof|shri|smt)\.?\b/g, '')
+    .replace(/[-']/g, ' ') // "Anne-Marie" / "O'Brien" shouldn't fail to match "Anne Marie" / "O Brien"
+    .replace(/[^a-z\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function namesMatch(a: string, b: string): boolean {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  return na.length > 0 && na === nb;
+}
+
+// Creates an empty Apartment record for a newly approved resident so
+// "Add Family Member" / "Add Vehicle" have something to write to — without
+// this, api.getApartment() 404s and those forms silently do nothing.
+function ensureApartmentExists(opts: {
+  apartmentId: string;
+  name: string;
+  phone: string;
+  email: string;
+  residentType?: 'owner' | 'tenant';
+  wing?: string;
+  flatNumber?: string;
+}) {
+  const existing = db.apartments.find(a => a.id.toLowerCase() === opts.apartmentId.toLowerCase());
+  if (existing) return existing;
+
+  const wing = (opts.wing || opts.apartmentId.split('-')[0] || 'A').toUpperCase();
+  const flatNumber = opts.flatNumber || opts.apartmentId.split('-')[1] || '';
+  const floor = flatNumber && !Number.isNaN(Number(flatNumber)) ? Math.max(1, Math.floor(Number(flatNumber) / 100)) : 1;
+  const wingIndex = Math.max(1, wing.charCodeAt(0) - 64);
+  const isTenant = opts.residentType === 'tenant';
+
+  const apt = {
+    id: opts.apartmentId,
+    wing,
+    flatNumber,
+    floor,
+    ownerName: opts.name,
+    ownerPhone: opts.phone,
+    ownerEmail: opts.email,
+    occupantType: isTenant ? ('tenant' as const) : ('owner' as const),
+    tenantName: isTenant ? opts.name : undefined,
+    tenantPhone: isTenant ? opts.phone : undefined,
+    familyMembers: [],
+    vehicles: [],
+    intercomNumber: `${wingIndex}${flatNumber}`,
+    duesBalance: 0,
+  };
+  db.apartments.push(apt);
+  db.scheduleSave();
+  return apt;
+}
 
 // SSE Clients Registry
 type SseClient = {
@@ -24,6 +101,8 @@ export function broadcastRealtimeEvent(event: RealtimeEvent) {
 }
 
 export const apiRouter = Router();
+apiRouter.use(createParkingAndPassRouter(broadcastRealtimeEvent));
+apiRouter.use(createBillingRouter(broadcastRealtimeEvent));
 
 // ----------------------------------------------------
 // REAL-TIME SSE STREAM
@@ -55,39 +134,156 @@ apiRouter.get('/realtime/stream', (req: Request, res: Response) => {
 // AUTH & USERS
 // ----------------------------------------------------
 apiRouter.get('/auth/users', (req: Request, res: Response) => {
-  res.json(db.users);
+  res.json(db.users.map(sanitizeUser));
 });
 
 apiRouter.post('/auth/login', (req: Request, res: Response) => {
-  const { email, password, role } = req.body;
-  const user = db.users.find(u => u.email.toLowerCase() === (email || '').toLowerCase()) || 
-               db.users.find(u => u.role === role);
-  if (user) {
-    res.json({ success: true, user });
-  } else {
-    // Return default first user
-    res.json({ success: true, user: db.users[1] });
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ success: false, error: 'Email and password are required.' });
   }
+
+  const user = db.users.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+
+  if (!user || !user.passwordHash || !bcrypt.compareSync(password, user.passwordHash)) {
+    return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+  }
+
+  res.json({ success: true, user: sanitizeUser(user) });
 });
 
+// Registration NEVER creates a live account directly — it files a request that
+// only becomes a real, login-able user once the Secretary approves it.
 apiRouter.post('/auth/register', (req: Request, res: Response) => {
-  const { name, email, phone, role, apartmentId, residentType } = req.body;
-  const newUser = {
-    id: `usr-${Date.now()}`,
-    name: name || 'New Resident',
-    email: email || `user${Date.now()}@example.com`,
-    phone: phone || '+91 99999 00000',
+  const { name, email, password, phone, role, apartmentId, residentType } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ success: false, error: 'Name, email and password are required.' });
+  }
+
+  const emailLower = String(email).toLowerCase();
+  const alreadyUser = db.users.some(u => u.email.toLowerCase() === emailLower);
+  const alreadyPending = db.signupRequests.some(r => r.email.toLowerCase() === emailLower && r.status === 'pending');
+  if (alreadyUser || alreadyPending) {
+    return res.status(409).json({ success: false, error: 'An account with this email already exists or is awaiting approval.' });
+  }
+
+  const wing = (apartmentId || '').split('-')[0] || undefined;
+  const flatNumber = (apartmentId || '').split('-')[1] || undefined;
+
+  const newRequest: SignupRequest = {
+    id: `sig-${Date.now()}`,
+    name,
+    email,
+    phone: phone || '',
+    passwordHash: bcrypt.hashSync(password, 10),
     role: role || 'resident',
-    apartmentId: apartmentId || 'A-102',
-    wing: (apartmentId || 'A').split('-')[0] || 'A',
-    flatNumber: (apartmentId || '102').split('-')[1] || '102',
-    residentType: residentType || 'owner',
-    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-    familyMembersCount: 1,
-    vehiclesCount: 1,
+    apartmentId: apartmentId || undefined,
+    wing,
+    flatNumber,
+    residentType: residentType || undefined,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  };
+
+  db.signupRequests.unshift(newRequest);
+
+  broadcastRealtimeEvent({
+    type: 'NEW_SIGNUP_REQUEST',
+    payload: sanitizeSignupRequest(newRequest),
+    timestamp: new Date().toISOString(),
+  });
+
+  res.json({
+    success: true,
+    pending: true,
+    message: 'Your account request has been sent to the Society Secretary for approval.',
+  });
+});
+
+// ----------------------------------------------------
+// ACCOUNT APPROVAL (SECRETARY / ADMIN)
+// ----------------------------------------------------
+apiRouter.get('/admin/signup-requests', (req: Request, res: Response) => {
+  const { status } = req.query;
+  let list = db.signupRequests;
+  if (status) {
+    list = list.filter(r => r.status === status);
+  }
+  res.json(list.map(sanitizeSignupRequest));
+});
+
+apiRouter.post('/admin/signup-requests/:id/approve', (req: Request, res: Response) => {
+  const { reviewedBy } = req.body;
+  const signupRequest = db.signupRequests.find(r => r.id === req.params.id);
+  if (!signupRequest) return res.status(404).json({ error: 'Signup request not found' });
+  if (signupRequest.status !== 'pending') {
+    return res.status(409).json({ error: `Request already ${signupRequest.status}` });
+  }
+
+  const newUser: User = {
+    id: `usr-${Date.now()}`,
+    name: signupRequest.name,
+    email: signupRequest.email,
+    phone: signupRequest.phone,
+    role: signupRequest.role,
+    apartmentId: signupRequest.apartmentId,
+    wing: signupRequest.wing,
+    flatNumber: signupRequest.flatNumber,
+    residentType: signupRequest.residentType,
+    passwordHash: signupRequest.passwordHash,
+    avatarUrl: generateAvatar(signupRequest.name),
+    familyMembersCount: 0,
+    vehiclesCount: 0,
   };
   db.users.push(newUser);
-  res.json({ success: true, user: newUser });
+
+  if (signupRequest.role === 'resident' && signupRequest.apartmentId) {
+    ensureApartmentExists({
+      apartmentId: signupRequest.apartmentId,
+      name: signupRequest.name,
+      phone: signupRequest.phone,
+      email: signupRequest.email,
+      residentType: signupRequest.residentType,
+      wing: signupRequest.wing,
+      flatNumber: signupRequest.flatNumber,
+    });
+  }
+
+  signupRequest.status = 'approved';
+  signupRequest.reviewedAt = new Date().toISOString();
+  signupRequest.reviewedBy = reviewedBy || 'Society Secretary';
+
+  broadcastRealtimeEvent({
+    type: 'SIGNUP_REQUEST_UPDATED',
+    payload: sanitizeSignupRequest(signupRequest),
+    timestamp: new Date().toISOString(),
+  });
+
+  res.json({ success: true, user: sanitizeUser(newUser), request: sanitizeSignupRequest(signupRequest) });
+});
+
+apiRouter.post('/admin/signup-requests/:id/reject', (req: Request, res: Response) => {
+  const { reviewedBy, reason } = req.body;
+  const signupRequest = db.signupRequests.find(r => r.id === req.params.id);
+  if (!signupRequest) return res.status(404).json({ error: 'Signup request not found' });
+  if (signupRequest.status !== 'pending') {
+    return res.status(409).json({ error: `Request already ${signupRequest.status}` });
+  }
+
+  signupRequest.status = 'rejected';
+  signupRequest.reviewedAt = new Date().toISOString();
+  signupRequest.reviewedBy = reviewedBy || 'Society Secretary';
+  signupRequest.rejectionReason = reason || 'Not approved by Society Secretary.';
+
+  broadcastRealtimeEvent({
+    type: 'SIGNUP_REQUEST_UPDATED',
+    payload: sanitizeSignupRequest(signupRequest),
+    timestamp: new Date().toISOString(),
+  });
+
+  res.json({ success: true, request: sanitizeSignupRequest(signupRequest) });
 });
 
 // ----------------------------------------------------
@@ -105,7 +301,23 @@ apiRouter.get('/apartments', (req: Request, res: Response) => {
 });
 
 apiRouter.get('/apartments/:id', (req: Request, res: Response) => {
-  const apt = db.apartments.find(a => a.id.toLowerCase() === req.params.id.toLowerCase());
+  let apt = db.apartments.find(a => a.id.toLowerCase() === req.params.id.toLowerCase());
+  if (!apt) {
+    // Self-heal: an already-approved resident whose flat record never got
+    // created (e.g. approved before this fix shipped) gets one on first load.
+    const resident = db.users.find(u => u.role === 'resident' && u.apartmentId?.toLowerCase() === req.params.id.toLowerCase());
+    if (resident) {
+      apt = ensureApartmentExists({
+        apartmentId: resident.apartmentId!,
+        name: resident.name,
+        phone: resident.phone,
+        email: resident.email,
+        residentType: resident.residentType,
+        wing: resident.wing,
+        flatNumber: resident.flatNumber,
+      });
+    }
+  }
   if (!apt) {
     return res.status(404).json({ error: 'Apartment not found' });
   }
@@ -188,7 +400,11 @@ apiRouter.post('/visitors/pre-approve', (req: Request, res: Response) => {
   res.json({ success: true, visitor: newVisitor });
 });
 
-// Log visitor entry by Security Guard (Direct or request approval)
+// Log visitor entry by Security Guard at the gate.
+// NOTE: This never auto-grants entry, even for an already pre-approved guest —
+// every arrival lands in 'Waiting Approval' and can only become 'Inside' via
+// POST /visitors/:id/verify-entry, which requires the guard to capture a valid
+// Aadhaar number first. This closes the old "pre-approved = instant entry" gap.
 apiRouter.post('/visitors/entry', (req: Request, res: Response) => {
   const { name, phone, visitorType, purpose, apartmentId, residentName, vehicleNumber, deliveryCompany, passCode } = req.body;
 
@@ -196,8 +412,7 @@ apiRouter.post('/visitors/entry', (req: Request, res: Response) => {
   let existing = db.visitors.find(v => (v.passCode === passCode || (v.phone === phone && v.status === 'Pre-Approved')) && v.apartmentId === apartmentId);
 
   if (existing) {
-    existing.status = 'Inside';
-    existing.entryTime = new Date().toISOString();
+    existing.status = 'Waiting Approval';
     existing.vehicleNumber = vehicleNumber || existing.vehicleNumber;
     existing.loggedByGuardName = 'Ramesh Bahadur (Gate 1)';
 
@@ -208,7 +423,7 @@ apiRouter.post('/visitors/entry', (req: Request, res: Response) => {
       targetApartmentId: apartmentId,
     });
 
-    return res.json({ success: true, visitor: existing, message: 'Pre-approved visitor pass verified. Entry granted!' });
+    return res.json({ success: true, visitor: existing, message: 'Pre-approved guest arrived. Awaiting Aadhaar verification by the gate guard.' });
   }
 
   // Create new entry
@@ -224,15 +439,14 @@ apiRouter.post('/visitors/entry', (req: Request, res: Response) => {
     vehicleNumber,
     deliveryCompany,
     passCode: code,
-    status: 'Waiting Approval', // Triggers instant popup on Resident's screen!
-    entryTime: new Date().toISOString(),
+    status: 'Waiting Approval', // Only becomes 'Inside' after guard's Aadhaar verification
     loggedByGuardName: 'Ramesh Bahadur (Gate 1)',
     createdAt: new Date().toISOString(),
   };
 
   db.visitors.unshift(newVisitor);
 
-  // Broadcast to Resident for instant 1-click Approval!
+  // Broadcast so the resident is notified their guest has arrived (informational only)
   broadcastRealtimeEvent({
     type: 'VISITOR_ARRIVAL',
     payload: newVisitor,
@@ -240,21 +454,83 @@ apiRouter.post('/visitors/entry', (req: Request, res: Response) => {
     targetApartmentId: apartmentId,
   });
 
-  res.json({ success: true, visitor: newVisitor, message: 'Approval request sent to resident in real-time.' });
+  res.json({ success: true, visitor: newVisitor, message: 'Entry logged. Awaiting Aadhaar verification by the gate guard.' });
 });
 
-// Resident or Guard updates visitor status (Approve, Deny, Checkout)
+// Guard-only: verify the visitor's Aadhaar number and grant physical entry.
+// This is the ONLY path that can move a visitor to 'Inside' — enforced here,
+// not just in the UI, so no other route can silently auto-approve entry.
+apiRouter.post('/visitors/:id/verify-entry', (req: Request, res: Response) => {
+  const { aadhaarNumber, aadhaarName, verifiedByGuard } = req.body;
+  const visitor = db.visitors.find(v => v.id === req.params.id);
+  if (!visitor) return res.status(404).json({ error: 'Visitor not found' });
+
+  if (visitor.status === 'Denied') {
+    return res.status(409).json({ error: 'This visitor was denied entry and cannot be verified.' });
+  }
+  if (visitor.status === 'Inside') {
+    return res.status(409).json({ error: 'This visitor has already been granted entry.' });
+  }
+
+  if (!isValidAadhaar(aadhaarNumber)) {
+    return res.status(400).json({ error: AADHAAR_ERROR });
+  }
+
+  if (!String(aadhaarName || '').trim()) {
+    return res.status(400).json({ error: 'Enter the name exactly as printed on the Aadhaar card.' });
+  }
+
+  if (!namesMatch(aadhaarName, visitor.name)) {
+    return res.status(400).json({
+      error: `Name mismatch: the visitor was logged as "${visitor.name}" but the Aadhaar card reads "${aadhaarName}". Entry cannot be granted — confirm this is the correct person or correct the visitor name.`,
+    });
+  }
+
+  // One Aadhaar can't be "inside" as two different visitors at once — catches
+  // someone reusing a card/number to wave a second person through the gate.
+  const cleanAadhaar = String(aadhaarNumber).trim();
+  const reused = db.visitors.find(v => v.id !== visitor.id && v.status === 'Inside' && v.aadhaarNumber === cleanAadhaar);
+  if (reused) {
+    return res.status(409).json({
+      error: `This Aadhaar number is already checked in as "${reused.name}" (Flat ${reused.apartmentId}). It can't be used for a second visitor until they check out.`,
+    });
+  }
+
+  visitor.aadhaarNumber = cleanAadhaar;
+  visitor.aadhaarName = String(aadhaarName).trim();
+  visitor.aadhaarVerifiedAt = new Date().toISOString();
+  visitor.status = 'Inside';
+  visitor.entryTime = new Date().toISOString();
+  visitor.loggedByGuardName = verifiedByGuard || visitor.loggedByGuardName || 'Ramesh Bahadur (Gate 1)';
+
+  broadcastRealtimeEvent({
+    type: 'VISITOR_STATUS_CHANGE',
+    payload: visitor,
+    timestamp: new Date().toISOString(),
+    targetApartmentId: visitor.apartmentId,
+  });
+
+  res.json({ success: true, visitor });
+});
+
+// Resident or Guard updates visitor status (Approve/acknowledge, Deny, Checkout).
+// 'Inside' is intentionally NOT allowed here — it must go through
+// POST /visitors/:id/verify-entry so Aadhaar verification can't be bypassed.
 apiRouter.patch('/visitors/:id/status', (req: Request, res: Response) => {
   const { status } = req.body;
   const visitor = db.visitors.find(v => v.id === req.params.id);
   if (!visitor) return res.status(404).json({ error: 'Visitor not found' });
 
+  if (status === 'Inside') {
+    return res.status(400).json({ error: 'Entry can only be granted via Aadhaar verification at the gate (verify-entry).' });
+  }
+
   visitor.status = status;
   if (status === 'Checked Out') {
     visitor.exitTime = new Date().toISOString();
-  }
-  if (status === 'Approved' && !visitor.entryTime) {
-    visitor.entryTime = new Date().toISOString();
+    db.parkingSlots
+      .filter(s => s.visitorId === visitor.id && s.status === 'Occupied')
+      .forEach(s => releaseSlot(s));
   }
 
   broadcastRealtimeEvent({
@@ -535,7 +811,7 @@ apiRouter.get('/billing', (req: Request, res: Response) => {
   if (apartmentId) {
     list = list.filter(b => b.apartmentId.toLowerCase() === (apartmentId as string).toLowerCase());
   }
-  res.json(list);
+  res.json(list.map(normalizeBill));
 });
 
 apiRouter.post('/billing/:id/pay', (req: Request, res: Response) => {

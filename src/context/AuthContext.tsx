@@ -1,14 +1,27 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
+import { generateAvatar } from '../utils/avatar';
 import { api } from '../services/api';
+
+interface RegisterData {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  role?: UserRole;
+  apartmentId?: string;
+  residentType?: string;
+}
 
 interface AuthContextType {
   currentUser: User;
   users: User[];
+  isAuthenticated: boolean;
   setCurrentUser: (user: User) => void;
   switchRole: (userId: string) => void;
-  loginUser: (email: string, role?: UserRole) => Promise<void>;
-  registerUser: (data: Partial<User>) => Promise<void>;
+  loginUser: (email: string, password: string) => Promise<User>;
+  registerUser: (data: RegisterData) => Promise<string>;
+  logoutUser: () => void;
   isLoading: boolean;
 }
 
@@ -22,7 +35,7 @@ const defaultUser: User = {
   wing: 'A',
   flatNumber: '402',
   residentType: 'owner',
-  avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
+  avatarUrl: generateAvatar('Aditya Sharma'),
   familyMembersCount: 3,
   vehiclesCount: 2,
 };
@@ -30,17 +43,20 @@ const defaultUser: User = {
 const AuthContext = createContext<AuthContextType>({
   currentUser: defaultUser,
   users: [defaultUser],
+  isAuthenticated: false,
   setCurrentUser: () => {},
   switchRole: () => {},
-  loginUser: async () => {},
-  registerUser: async () => {},
+  loginUser: async () => defaultUser,
+  registerUser: async () => '',
+  logoutUser: () => {},
   isLoading: false,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User>(() => {
+  const [currentUser, setCurrentUserState] = useState<User>(() => {
+    const authed = localStorage.getItem('nivara_authenticated') === 'true';
     const saved = localStorage.getItem('nivara_user');
-    if (saved) {
+    if (authed && saved) {
       try {
         return JSON.parse(saved);
       } catch (e) {
@@ -48,6 +64,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     return defaultUser;
+  });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('nivara_authenticated') === 'true' && !!localStorage.getItem('nivara_user');
   });
 
   const [users, setUsers] = useState<User[]>([defaultUser]);
@@ -59,11 +79,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const list = await api.getUsers();
         if (list && list.length > 0) {
           setUsers(list);
-          // If currentUser doesn't match loaded list, keep existing or set
-          const matched = list.find(u => u.id === currentUser.id);
-          if (matched) {
-            setCurrentUser(matched);
-          }
         }
       } catch (e) {
         console.error('Failed to load users', e);
@@ -74,39 +89,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchUsers();
   }, []);
 
+  const persistSession = (user: User, authenticated: boolean) => {
+    setCurrentUserState(user);
+    setIsAuthenticated(authenticated);
+    if (authenticated) {
+      localStorage.setItem('nivara_user', JSON.stringify(user));
+      localStorage.setItem('nivara_authenticated', 'true');
+    } else {
+      localStorage.removeItem('nivara_user');
+      localStorage.removeItem('nivara_authenticated');
+    }
+  };
+
+  // Kept for internal/demo tooling only — does not grant authentication.
   const switchRole = (userId: string) => {
     const target = users.find(u => u.id === userId);
     if (target) {
-      setCurrentUser(target);
-      localStorage.setItem('nivara_user', JSON.stringify(target));
+      persistSession(target, true);
     }
   };
 
-  const loginUser = async (email: string, role?: UserRole) => {
+  const loginUser = async (email: string, password: string): Promise<User> => {
     setIsLoading(true);
     try {
-      const res = await api.login(email, undefined, role);
+      const res = await api.login(email, password);
       if (res.success && res.user) {
-        setCurrentUser(res.user);
-        localStorage.setItem('nivara_user', JSON.stringify(res.user));
+        persistSession(res.user, true);
+        return res.user;
       }
+      throw new Error('Invalid email or password.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const registerUser = async (data: Partial<User>) => {
+  const registerUser = async (data: RegisterData): Promise<string> => {
     setIsLoading(true);
     try {
       const res = await api.register(data);
-      if (res.success && res.user) {
-        setCurrentUser(res.user);
-        setUsers(prev => [...prev, res.user]);
-        localStorage.setItem('nivara_user', JSON.stringify(res.user));
-      }
+      return res.message || 'Your account request has been sent to the Society Secretary for approval.';
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const logoutUser = () => {
+    persistSession(defaultUser, false);
   };
 
   return (
@@ -114,13 +142,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         currentUser,
         users,
-        setCurrentUser: (u) => {
-          setCurrentUser(u);
-          localStorage.setItem('nivara_user', JSON.stringify(u));
-        },
+        isAuthenticated,
+        setCurrentUser: (u) => persistSession(u, true),
         switchRole,
         loginUser,
         registerUser,
+        logoutUser,
         isLoading,
       }}
     >

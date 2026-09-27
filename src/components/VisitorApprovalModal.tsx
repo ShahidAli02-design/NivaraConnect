@@ -15,7 +15,9 @@ export const VisitorApprovalModal: React.FC = () => {
       if (status === 'Approved') {
         triggerSound('success');
       }
-      await api.updateVisitorStatus(incomingVisitor.id, status === 'Approved' ? 'Inside' : 'Denied');
+      // Residents can pre-clear or deny a guest, but the gate only opens once
+      // the security guard verifies the visitor's Aadhaar number — see SecurityGateDesk.
+      await api.updateVisitorStatus(incomingVisitor.id, status);
       setIncomingVisitor(null);
     } catch (e) {
       console.error('Failed to update visitor status', e);
@@ -99,7 +101,7 @@ export const VisitorApprovalModal: React.FC = () => {
           </div>
 
           <p className="text-xs text-slate-500 text-center">
-            Security Guard Ramesh at Gate 1 is awaiting your approval to open the boom barrier.
+            This only lets Security know you're expecting this guest. Ramesh at Gate 1 will still verify their Aadhaar ID before opening the barrier.
           </p>
 
           {/* Action Buttons */}
@@ -116,7 +118,7 @@ export const VisitorApprovalModal: React.FC = () => {
               disabled={isProcessing}
               className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-colors"
             >
-              <CheckCircle className="w-4 h-4" /> Allow Entry
+              <CheckCircle className="w-4 h-4" /> I'm Expecting Them
             </button>
           </div>
         </div>

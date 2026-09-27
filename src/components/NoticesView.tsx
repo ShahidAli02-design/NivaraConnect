@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FileText, Sparkles, Plus, Vote, CheckCircle2, 
+import {
+  FileText, Sparkles, Plus, Vote, CheckCircle2,
   Calendar, AlertTriangle, Users, MessageSquare, Send, ThumbsUp
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -116,15 +116,15 @@ export const NoticesView: React.FC = () => {
   return (
     <div className="space-y-6 pb-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm text-slate-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-card p-6 rounded-3xl border-amber-200/80 shadow-sm">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
+          <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-xl border border-amber-200">
               <FileText className="w-5 h-5" />
             </div>
             Digital Notice Board & Community Polls
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Official announcements, AGM circulars, emergency updates, and resident votes
           </p>
         </div>
@@ -132,7 +132,7 @@ export const NoticesView: React.FC = () => {
         {currentUser.role === 'admin' && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all shrink-0 active:scale-95"
+            className="px-4 py-2.5 btn-gold text-xs font-semibold rounded-xl flex items-center gap-2 transition-all shrink-0 active:scale-95"
           >
             <Plus className="w-4 h-4" /> Publish Announcement
           </button>
@@ -147,8 +147,8 @@ export const NoticesView: React.FC = () => {
             onClick={() => setCategoryFilter(cat)}
             className={`px-3.5 py-1.5 rounded-xl font-medium transition-all whitespace-nowrap ${
               categoryFilter === cat
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-gold-gradient text-white shadow-sm'
+                : 'bg-white text-slate-500 hover:text-slate-900 border border-amber-200'
             }`}
           >
             {cat}
@@ -163,36 +163,36 @@ export const NoticesView: React.FC = () => {
           return (
             <div
               key={n.id}
-              className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm p-6 space-y-4 flex flex-col justify-between"
+              className="glass-card rounded-3xl border-amber-200/80 shadow-sm p-6 space-y-4 flex flex-col justify-between"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
-                    n.priority === 'Urgent / Alert' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                    n.priority === 'Important' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                    'bg-slate-800 text-slate-300 border-slate-700'
+                    n.priority === 'Urgent / Alert' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                    n.priority === 'Important' ? 'bg-amber-100 text-amber-900 border-amber-300' :
+                    'bg-slate-100 text-slate-700 border-slate-200'
                   }`}>
                     {n.priority}
                   </span>
-                  <span className="text-xs text-slate-500 font-mono">
+                  <span className="text-xs text-slate-400 font-mono">
                     {new Date(n.publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider">{n.category}</span>
-                  <h2 className="text-base font-bold text-white mt-0.5">{n.title}</h2>
+                  <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider">{n.category}</span>
+                  <h2 className="text-base font-bold text-slate-900 mt-0.5">{n.title}</h2>
                 </div>
 
-                <div className="text-xs text-slate-300 leading-relaxed whitespace-pre-line bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
+                <div className="text-xs text-slate-600 leading-relaxed whitespace-pre-line bg-amber-50/60 p-3.5 rounded-xl border border-amber-200/70">
                   {n.content}
                 </div>
 
                 {/* Poll Section */}
                 {n.poll && (
-                  <div className="p-4 bg-slate-950/80 rounded-xl border border-indigo-500/20 space-y-2.5">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-indigo-300">
-                      <Vote className="w-4 h-4 text-indigo-400" />
+                  <div className="p-4 bg-white rounded-xl border border-amber-300/70 space-y-2.5 shadow-xs">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-amber-800">
+                      <Vote className="w-4 h-4 text-amber-600" />
                       <span>Community Poll: {n.poll.question}</span>
                     </div>
 
@@ -207,17 +207,17 @@ export const NoticesView: React.FC = () => {
                             onClick={() => handleVote(n.id, opt.id)}
                             className={`w-full text-left p-2.5 rounded-lg border text-xs relative overflow-hidden transition-all ${
                               isVoted
-                                ? 'border-indigo-500 bg-indigo-950/50 text-indigo-200 font-medium'
-                                : 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300'
+                                ? 'border-amber-400 bg-amber-100/70 text-amber-900 font-bold'
+                                : 'border-slate-200 bg-white hover:bg-amber-50/60 text-slate-600'
                             }`}
                           >
                             <div
-                              className="absolute left-0 top-0 bottom-0 bg-indigo-500/20 pointer-events-none"
+                              className="absolute left-0 top-0 bottom-0 bg-amber-200/40 pointer-events-none"
                               style={{ width: `${pct}%` }}
                             />
                             <div className="relative flex justify-between items-center">
                               <span>{opt.text} {isVoted && '✓ (Your Vote)'}</span>
-                              <span className="font-mono text-xs font-bold text-slate-400">{opt.votes} ({pct}%)</span>
+                              <span className="font-mono text-xs font-bold text-slate-500">{opt.votes} ({pct}%)</span>
                             </div>
                           </button>
                         );
@@ -228,17 +228,17 @@ export const NoticesView: React.FC = () => {
               </div>
 
               {/* Bottom Card Footer */}
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                <div className="text-slate-400">
-                  Published by <strong className="text-white font-medium">{n.publishedBy}</strong>
+              <div className="pt-3 border-t border-amber-100 flex items-center justify-between text-xs">
+                <div className="text-slate-500">
+                  Published by <strong className="text-slate-900 font-medium">{n.publishedBy}</strong>
                 </div>
 
                 <button
                   onClick={() => handleAcknowledge(n.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-medium transition-colors ${
                     isAcked
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/50'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-white hover:bg-amber-50 text-slate-700 border border-amber-200 shadow-xs'
                   }`}
                 >
                   <ThumbsUp className="w-3.5 h-3.5" />
@@ -252,17 +252,17 @@ export const NoticesView: React.FC = () => {
 
       {/* Publish Notice Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto text-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-base font-bold text-white">Publish Society Announcement</h3>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white font-bold">✕</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-amber-300 space-y-4 max-h-[90vh] overflow-y-auto text-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-amber-100">
+              <h3 className="text-base font-black text-slate-900">Publish Society Announcement</h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-rose-600 font-bold">✕</button>
             </div>
 
             {/* AI Assistant Generator */}
-            <div className="p-3.5 bg-slate-950/80 rounded-xl border border-indigo-500/20 space-y-2">
-              <span className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-400" /> Draft Notice with Gemini AI:
+            <div className="p-3.5 bg-amber-50/70 rounded-2xl border border-amber-300 space-y-2">
+              <span className="text-xs font-semibold text-amber-900 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-600" /> Draft Notice with Gemini AI:
               </span>
               <div className="flex gap-2">
                 <input
@@ -270,13 +270,13 @@ export const NoticesView: React.FC = () => {
                   value={aiTopic}
                   onChange={(e) => setAiTopic(e.target.value)}
                   placeholder="e.g. Pest control treatment across all wings next Tuesday"
-                  className="flex-1 text-xs px-3 py-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  className="flex-1 text-xs px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-2 focus:ring-amber-200"
                 />
                 <button
                   type="button"
                   onClick={handleAiDraft}
                   disabled={isDraftingAi || !aiTopic.trim()}
-                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shrink-0 shadow-md shadow-indigo-600/20"
+                  className="px-3 py-2 btn-gold text-xs font-semibold rounded-lg shrink-0"
                 >
                   {isDraftingAi ? 'Drafting...' : 'AI Draft'}
                 </button>
@@ -285,24 +285,24 @@ export const NoticesView: React.FC = () => {
 
             <form onSubmit={handlePublish} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Headline:</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Headline:</label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Notice Headline"
-                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-800 bg-slate-950/70 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-2 focus:ring-amber-200"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Category:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Category:</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as any)}
-                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white"
                   >
                     <option value="General">General</option>
                     <option value="Maintenance">Maintenance</option>
@@ -314,11 +314,11 @@ export const NoticesView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Priority:</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Priority:</label>
                   <select
                     value={priority}
                     onChange={(e) => setPriority(e.target.value as any)}
-                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white"
                   >
                     <option value="Normal">Normal</option>
                     <option value="Important">Important</option>
@@ -328,37 +328,37 @@ export const NoticesView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Notice Content:</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Notice Content:</label>
                 <textarea
                   required
                   rows={4}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Enter full notice announcement..."
-                  className="w-full text-xs p-3 rounded-xl border border-slate-800 bg-slate-950/70 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 leading-relaxed"
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white leading-relaxed"
                 />
               </div>
 
               {/* Poll Toggle */}
-              <div className="pt-2 border-t border-slate-800 space-y-2">
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-300 cursor-pointer">
+              <div className="pt-2 border-t border-amber-100 space-y-2">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={hasPoll}
                     onChange={(e) => setHasPoll(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded bg-slate-900 border-slate-700"
+                    className="w-4 h-4 text-amber-600 rounded bg-white border-slate-300"
                   />
                   <span>Attach Interactive Community Poll</span>
                 </label>
 
                 {hasPoll && (
-                  <div className="p-3 bg-slate-950/80 rounded-xl space-y-2 text-xs border border-slate-800">
+                  <div className="p-3 bg-amber-50/60 rounded-xl space-y-2 text-xs border border-amber-200/70">
                     <input
                       type="text"
                       value={pollQuestion}
                       onChange={(e) => setPollQuestion(e.target.value)}
                       placeholder="Poll Question (e.g. Do you support installing EV chargers?)"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-200 placeholder-slate-500"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <input
@@ -370,7 +370,7 @@ export const NoticesView: React.FC = () => {
                           setPollOptions(copy);
                         }}
                         placeholder="Option 1"
-                        className="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-200"
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800"
                       />
                       <input
                         type="text"
@@ -381,7 +381,7 @@ export const NoticesView: React.FC = () => {
                           setPollOptions(copy);
                         }}
                         placeholder="Option 2"
-                        className="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-200"
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800"
                       />
                     </div>
                   </div>
@@ -392,14 +392,14 @@ export const NoticesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-700/60 text-xs font-medium text-slate-300 hover:bg-slate-800"
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isPublishing}
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-600/20"
+                  className="flex-1 py-2.5 btn-gold text-xs font-semibold rounded-xl"
                 >
                   {isPublishing ? 'Publishing...' : 'Broadcast Notice'}
                 </button>

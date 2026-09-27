@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { apiRouter } from './server/routes';
+import { db } from './server/db';
 
 dotenv.config();
 
@@ -16,6 +17,12 @@ async function startServer() {
 
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
+
+  // Persist data after every write request (POST/PATCH/PUT/DELETE)
+  app.use('/api', (req, res, next) => {
+    if (req.method !== 'GET') res.on('finish', () => db.scheduleSave());
+    next();
+  });
 
   // API Routes Mounted FIRST
   app.use('/api', apiRouter);

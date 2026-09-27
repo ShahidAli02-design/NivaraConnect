@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RealtimeProvider } from './context/RealtimeContext';
 import { WelcomeIntro } from './components/WelcomeIntro';
@@ -14,30 +14,36 @@ import { NoticesView } from './components/NoticesView';
 import { BillingView } from './components/BillingView';
 import { AmenitiesView } from './components/AmenitiesView';
 import { DirectoryView } from './components/DirectoryView';
+import { ParkingView } from './components/ParkingView';
+import { ResidencyPassView } from './components/ResidencyPassView';
 import { SOSModal } from './components/SOSModal';
 import { VisitorApprovalModal } from './components/VisitorApprovalModal';
 import { AiAssistantDrawer } from './components/AiAssistantDrawer';
 import { Sparkles, Radio, Compass, Play } from 'lucide-react';
 import { UserRole } from './types';
 
+const PROTECTED_TABS = ['dashboard', 'resident', 'security', 'visitors', 'complaints', 'notices', 'billing', 'amenities', 'directory', 'parking', 'residency'];
+
 const AppContent: React.FC = () => {
-  const { currentUser, switchRole, users } = useAuth();
+  const { currentUser, isAuthenticated, logoutUser } = useAuth();
   // Show the animated Intro screen first
   const [showIntro, setShowIntro] = useState<boolean>(true);
   const [currentTab, setCurrentTab] = useState<string>('landing');
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isAiOpen, setIsAiOpen] = useState(false);
 
-  const handleEnterDashboard = (role?: UserRole) => {
-    if (role) {
-      if (role === 'admin') setCurrentTab('dashboard');
-      else if (role === 'security') setCurrentTab('security');
-      else setCurrentTab('resident');
-    } else {
-      if (currentUser.role === 'admin') setCurrentTab('dashboard');
-      else if (currentUser.role === 'security') setCurrentTab('security');
-      else setCurrentTab('resident');
+  // Guard: only authenticated (approved) accounts may view dashboard tabs.
+  useEffect(() => {
+    if (!isAuthenticated && PROTECTED_TABS.includes(currentTab)) {
+      setCurrentTab('landing');
     }
+  }, [isAuthenticated, currentTab]);
+
+  const handleEnterDashboard = (role?: UserRole) => {
+    const effectiveRole = role || currentUser.role;
+    if (effectiveRole === 'admin') setCurrentTab('dashboard');
+    else if (effectiveRole === 'security') setCurrentTab('security');
+    else setCurrentTab('resident');
   };
 
   const renderContent = () => {
@@ -80,6 +86,10 @@ const AppContent: React.FC = () => {
         return <AmenitiesView />;
       case 'directory':
         return <DirectoryView />;
+      case 'parking':
+        return <ParkingView />;
+      case 'residency':
+        return <ResidencyPassView />;
       default:
         return (
           <LandingPage
@@ -112,6 +122,10 @@ const AppContent: React.FC = () => {
           onOpenSos={() => setIsSosOpen(true)}
           onOpenAi={() => setIsAiOpen(true)}
           onGoHome={() => setCurrentTab('landing')}
+          onLogout={() => {
+            logoutUser();
+            setCurrentTab('landing');
+          }}
         />
       )}
 

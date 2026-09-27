@@ -126,3 +126,10 @@ body {
 .pulse-glow-dot {
   animation: pulseGlow 2s infinite;
 }
+
+/* Slim horizontal scrollbar for the top nav tabs */
+.nav-scroll { scrollbar-width: thin; scrollbar-color: rgba(212,175,55,0.5) transparent; }
+.nav-scroll::-webkit-scrollbar { height: 5px; }
+.nav-scroll::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.5); border-radius: 9999px; }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

@@ -29,6 +29,15 @@ export const WelcomeIntro: React.FC<WelcomeIntroProps> = ({ onContinue }) => {
       { id: 18, delay: 3000 },
       { id: 12, delay: 3200 },
       { id: 13, delay: 3400 },
+      // remaining windows so the whole building is lit
+      { id: 1, delay: 3550 },
+      { id: 10, delay: 3700 },
+      { id: 15, delay: 3850 },
+      { id: 5, delay: 4000 },
+      { id: 19, delay: 4150 },
+      { id: 0, delay: 4300 },
+      { id: 9, delay: 4450 },
+      { id: 4, delay: 4600 },
     ];
 
     const timeouts: NodeJS.Timeout[] = [];

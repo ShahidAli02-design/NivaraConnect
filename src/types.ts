@@ -13,6 +13,27 @@ export interface User {
   avatarUrl?: string;
   familyMembersCount?: number;
   vehiclesCount?: number;
+  passwordHash?: string; // Never sent to the client
+}
+
+export type SignupRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface SignupRequest {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  passwordHash: string; // Never sent to the client
+  role: UserRole;
+  apartmentId?: string;
+  wing?: string;
+  flatNumber?: string;
+  residentType?: 'owner' | 'tenant';
+  status: SignupRequestStatus;
+  createdAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectionReason?: string;
 }
 
 export interface FamilyMember {
@@ -69,6 +90,9 @@ export interface Visitor {
   photoUrl?: string;
   accompanyingGuests?: number;
   deliveryCompany?: string; // "Amazon", "Swiggy", "Uber", etc.
+  aadhaarNumber?: string; // 12-digit ID captured by the guard at gate verification
+  aadhaarName?: string; // Name as printed on the Aadhaar card, entered by the guard for cross-check
+  aadhaarVerifiedAt?: string;
   createdAt: string;
 }
 
@@ -264,6 +288,7 @@ export interface SocietyStats {
   activeSosCount: number;
   maintenanceCollectionRate: number; // percentage
   totalCollectionMonth: number;
+  pendingAccountApprovals: number;
 }
 
 export interface PublicSuggestion {
@@ -287,11 +312,60 @@ export type RealtimeEventType =
   | 'COMPLAINT_UPDATED'
   | 'BILL_PAID'
   | 'NEW_POLL_VOTE'
-  | 'NEW_SUGGESTION';
+  | 'NEW_SUGGESTION'
+  | 'NEW_SIGNUP_REQUEST'
+  | 'SIGNUP_REQUEST_UPDATED'
+  | 'PARKING_UPDATED'
+  | 'RESIDENT_ENTRY'
+  | 'BILL_CREATED'
+  | 'BILL_UPDATED';
 
 export interface RealtimeEvent {
   type: RealtimeEventType;
   payload: any;
   timestamp: string;
   targetApartmentId?: string; // If targeting a specific flat
+}
+
+// ---- Live Parking ----
+export type ParkingZone = 'Guest' | 'Resident';
+export interface ParkingSlot {
+  id: string;
+  label: string;
+  zone: ParkingZone;
+  status: 'Free' | 'Occupied';
+  vehicleNumber?: string;
+  occupantName?: string;
+  apartmentId?: string;
+  visitorId?: string;
+  since?: string;
+  allowedMinutes?: number; // guest slots only
+  expiresAt?: string; // guest slots only
+}
+
+// ---- Premium Residency Pass (residents' own gate entry) ----
+export interface ResidentPassHolder {
+  name: string;
+  relation: string; // Owner / Tenant / Spouse / Child ...
+  status: 'Inside' | 'Outside';
+  lastMovementAt?: string;
+}
+export interface ResidentPass {
+  passId: string;
+  code: string;
+  tier: 'Premium';
+  apartmentId: string;
+  validUntil: string;
+  holders: ResidentPassHolder[];
+  vehicles: string[];
+}
+export interface ResidentEntry {
+  id: string;
+  passId: string;
+  apartmentId: string;
+  holderName: string;
+  direction: 'IN' | 'OUT';
+  vehicleNumber?: string;
+  timestamp: string;
+  loggedBy: string;
 }

@@ -1,7 +1,8 @@
-import { 
-  User, Apartment, Visitor, Complaint, Notice, SOSAlert, 
-  MaintenanceBill, Amenity, AmenityBooking, ForumPost, 
-  SocietyStaff, SocietyStats, PublicSuggestion 
+import {
+  User, Apartment, Visitor, Complaint, Notice, SOSAlert,
+  MaintenanceBill, Amenity, AmenityBooking, ForumPost,
+  SocietyStaff, SocietyStats, PublicSuggestion, SignupRequest,
+  ParkingSlot, ResidentPass, ResidentEntry
 } from '../types';
 
 const API_BASE = '/api';
@@ -41,19 +42,49 @@ export const api = {
     return request<User[]>(`${API_BASE}/auth/users`);
   },
 
-  async login(email?: string, password?: string, role?: string): Promise<{ success: boolean; user: User }> {
+  async login(email: string, password: string): Promise<{ success: boolean; user: User }> {
     return request<{ success: boolean; user: User }>(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, role }),
+      body: JSON.stringify({ email, password }),
     });
   },
 
-  async register(data: Partial<User>): Promise<{ success: boolean; user: User }> {
-    return request<{ success: boolean; user: User }>(`${API_BASE}/auth/register`, {
+  async register(data: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+    role?: string;
+    apartmentId?: string;
+    residentType?: string;
+  }): Promise<{ success: boolean; pending: boolean; message: string }> {
+    return request<{ success: boolean; pending: boolean; message: string }>(`${API_BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+    });
+  },
+
+  // Account approval (Secretary)
+  async getSignupRequests(status?: string): Promise<SignupRequest[]> {
+    const q = status ? `?status=${status}` : '';
+    return request<SignupRequest[]>(`${API_BASE}/admin/signup-requests${q}`);
+  },
+
+  async approveSignupRequest(id: string, reviewedBy?: string): Promise<{ success: boolean; user: User }> {
+    return request<{ success: boolean; user: User }>(`${API_BASE}/admin/signup-requests/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewedBy }),
+    });
+  },
+
+  async rejectSignupRequest(id: string, reviewedBy?: string, reason?: string): Promise<{ success: boolean }> {
+    return request<{ success: boolean }>(`${API_BASE}/admin/signup-requests/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewedBy, reason }),
     });
   },
 
@@ -135,6 +166,16 @@ export const api = {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
+    });
+  },
+
+  // Guard-only: the sole path that can grant physical entry — requires a valid Aadhaar
+  // number AND the name printed on the card to match the logged visitor name.
+  async verifyEntryWithAadhaar(id: string, aadhaarNumber: string, aadhaarName: string, verifiedByGuard?: string): Promise<{ success: boolean; visitor: Visitor }> {
+    return request<{ success: boolean; visitor: Visitor }>(`${API_BASE}/visitors/${id}/verify-entry`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aadhaarNumber, aadhaarName, verifiedByGuard }),
     });
   },
 
@@ -262,6 +303,21 @@ export const api = {
     });
   },
 
+  async createBill(data: {
+    apartmentId: string; month: string; baseAmount: number; sinkingFund: number; waterCharges: number;
+    commonElectricity: number; parkingCharges: number; penaltyCharges: number; dueDate: string;
+  }): Promise<{ success: boolean; created: MaintenanceBill[]; skipped: string[] }> {
+    return request(`${API_BASE}/billing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteBill(id: string): Promise<{ success: boolean }> {
+    return request(`${API_BASE}/billing/${id}`, { method: 'DELETE' });
+  },
+
   // Amenities
   async getAmenities(): Promise<Amenity[]> {
     return request<Amenity[]>(`${API_BASE}/amenities`);
@@ -378,6 +434,49 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, description, category }),
+    });
+  },
+
+  // Live Parking
+  async getParking(): Promise<ParkingSlot[]> {
+    return request<ParkingSlot[]>(`${API_BASE}/parking`);
+  },
+
+  async assignParking(id: string, data: { visitorId?: string; occupantName?: string; vehicleNumber: string; minutes: number }) {
+    return request<{ success: boolean; slot: ParkingSlot }>(`${API_BASE}/parking/${id}/assign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async extendParking(id: string, minutes: number) {
+    return request<{ success: boolean; slot: ParkingSlot }>(`${API_BASE}/parking/${id}/extend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minutes }),
+    });
+  },
+
+  async releaseParking(id: string) {
+    return request<{ success: boolean; slot: ParkingSlot }>(`${API_BASE}/parking/${id}/release`, { method: 'POST' });
+  },
+
+  // Premium Residency Pass
+  async getResidentPasses(): Promise<ResidentPass[]> {
+    return request<ResidentPass[]>(`${API_BASE}/resident-passes`);
+  },
+
+  async getResidentEntries(apartmentId?: string): Promise<ResidentEntry[]> {
+    const q = apartmentId ? `?apartmentId=${encodeURIComponent(apartmentId)}` : '';
+    return request<ResidentEntry[]>(`${API_BASE}/resident-entries${q}`);
+  },
+
+  async scanResidentPass(data: { code: string; holderName: string; direction?: 'IN' | 'OUT'; vehicleNumber?: string; loggedBy?: string }) {
+    return request<{ success: boolean; entry: ResidentEntry }>(`${API_BASE}/resident-passes/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
     });
   },
 

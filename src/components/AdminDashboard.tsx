@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Building, Users, UserCheck, Wrench, ShieldAlert, CreditCard, 
-  Sparkles, CheckCircle2, Clock, AlertTriangle, Plus, ArrowUpRight, 
-  Send, PhoneCall, ChevronRight, FileText, Check, Filter, Zap
+import {
+  Building, Users, UserCheck, Wrench, ShieldAlert, CreditCard,
+  Sparkles, CheckCircle2, Clock, AlertTriangle, Plus, ArrowUpRight,
+  Send, PhoneCall, ChevronRight, FileText, Check, Filter, Zap,
+  UserPlus, X, Mail, Phone
 } from 'lucide-react';
 import { api } from '../services/api';
-import { SocietyStats, Complaint, Visitor, SOSAlert, Notice, MaintenanceBill, SocietyStaff } from '../types';
+import { SocietyStats, Complaint, Visitor, SOSAlert, Notice, MaintenanceBill, SocietyStaff, SignupRequest, Apartment } from '../types';
 import { useRealtime } from '../context/RealtimeContext';
+import { fmtDateTime } from '../utils/format';
 
 interface AdminDashboardProps {
   onNavigate: (tab: any) => void;
@@ -22,7 +24,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onOp
   const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [staffList, setStaffList] = useState<SocietyStaff[]>([]);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [signupRequests, setSignupRequests] = useState<SignupRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
   // AI Notice Drafter State
   const [showNoticeModal, setShowNoticeModal] = useState(false);
@@ -40,13 +45,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onOp
 
   const loadAdminData = async () => {
     try {
-      const [st, cmps, vis, sos, nots, stf] = await Promise.all([
+      const [st, cmps, vis, sos, nots, stf, sigReqs, apts] = await Promise.all([
         api.getStats(),
         api.getComplaints(),
         api.getVisitors(),
         api.getSosAlerts(),
         api.getNotices(),
         api.getStaff(),
+        api.getSignupRequests('pending'),
+        api.getApartments(),
       ]);
       setStats(st);
       setComplaints(cmps);
@@ -54,10 +61,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onOp
       setSosAlerts(sos);
       setNotices(nots);
       setStaffList(stf);
+      setSignupRequests(sigReqs);
+      setApartments(apts);
     } catch (e) {
       console.error('Failed to load admin data', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveSignup = async (id: string) => {
+    setProcessingRequestId(id);
+    try {
+      await api.approveSignupRequest(id, 'Prof. Rajesh Kulkarni (Secretary)');
+      setSignupRequests(prev => prev.filter(r => r.id !== id));
+      loadAdminData();
+    } catch (e) {
+      console.error('Failed to approve signup request', e);
+    } finally {
+      setProcessingRequestId(null);
+    }
+  };
+
+  const handleRejectSignup = async (id: string) => {
+    setProcessingRequestId(id);
+    try {
+      await api.rejectSignupRequest(id, 'Prof. Rajesh Kulkarni (Secretary)');
+      setSignupRequests(prev => prev.filter(r => r.id !== id));
+    } catch (e) {
+      console.error('Failed to reject signup request', e);
+    } finally {
+      setProcessingRequestId(null);
     }
   };
 
@@ -198,6 +232,78 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onOp
         </div>
       )}
 
+      {/* NEW ACCOUNT APPROVAL REQUESTS */}
+      <div className="glass-card rounded-3xl overflow-hidden flex flex-col border-amber-300/80 shadow-md">
+        <div className="p-5 border-b border-amber-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-xl relative">
+              <UserPlus className="w-4 h-4" />
+              {signupRequests.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+                  {signupRequests.length}
+                </span>
+              )}
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm">New Account Requests</h4>
+              <p className="text-[11px] text-slate-500">New sign-ups activate only after you approve them here</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {signupRequests.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-400 font-medium">No pending account requests right now.</div>
+          ) : (
+            signupRequests.map((r) => (
+              <div key={r.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white rounded-2xl border border-amber-200/80 shadow-xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 font-black text-sm uppercase">
+                    {r.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-slate-900">{r.name}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border bg-amber-100 text-amber-800 border-amber-300">
+                        {r.role === 'admin' ? 'Secretary' : r.role === 'security' ? 'Security' : 'Resident'}
+                      </span>
+                      {r.apartmentId && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border bg-slate-100 text-slate-700 border-slate-200">
+                          Flat {r.apartmentId}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {r.email}</span>
+                      {r.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {r.phone}</span>}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-1 font-mono">
+                      Requested {new Date(r.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handleRejectSignup(r.id)}
+                    disabled={processingRequestId === r.id}
+                    className="px-3.5 py-2 bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" /> Reject
+                  </button>
+                  <button
+                    onClick={() => handleApproveSignup(r.id)}
+                    disabled={processingRequestId === r.id}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Approve
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
       {/* KPI Stats Grid */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-card p-5 rounded-2xl border-amber-200/70">
@@ -208,10 +314,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onOp
             </div>
           </div>
           <h3 className="text-3xl font-black text-slate-900">
-            {stats?.occupiedFlats || 108} <span className="text-sm font-normal text-slate-400">/ 120</span>
+            {stats?.occupiedFlats ?? 0} <span className="text-sm font-normal text-slate-400">/ {stats?.totalFlats ?? 0}</span>
           </h3>
           <p className="text-emerald-700 text-xs mt-2 font-bold flex items-center gap-1">
-            ↑ 90% Occupied • 342 Residents
+            {stats && stats.totalFlats > 0 ? Math.round((stats.occupiedFlats / stats.totalFlats) * 100) : 0}% Occupied • {stats?.totalResidents ?? 0} Residents
           </p>
         </div>
 
@@ -408,7 +514,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onOp
                         </span>
                       </td>
                       <td className="px-6 py-3.5 text-right text-slate-500 font-mono">
-                        {v.entryTime ? new Date(v.entryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pre-pass'}
+                        {v.entryTime ? fmtDateTime(v.entryTime) : 'Pre-pass'}
                       </td>
                     </tr>
                   ))}
@@ -453,6 +559,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate, onOp
                   <p className="text-slate-600 line-clamp-2 text-[11px] leading-relaxed">{n.content}</p>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Flat Occupancy: how many people live where */}
+          <div className="glass-card rounded-3xl p-5 flex flex-col border-amber-200/80">
+            <div className="flex items-center justify-between pb-3 border-b border-amber-100">
+              <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Building className="w-4 h-4 text-amber-700" />
+                Flat Occupancy
+              </h4>
+              <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full uppercase">
+                {stats?.totalResidents ?? 0} Residents
+              </span>
+            </div>
+
+            <div className="space-y-2 mt-4 max-h-80 overflow-y-auto pr-1">
+              {apartments.length === 0 ? (
+                <div className="text-center py-6 text-xs text-slate-400 font-medium">No flats registered yet.</div>
+              ) : (
+                [...apartments]
+                  .sort((a, b) => a.id.localeCompare(b.id))
+                  .map((a) => {
+                    const headcount = (a.occupantType !== 'vacant' ? 1 : 0) + a.familyMembers.length;
+                    const primaryName = a.occupantType === 'tenant' ? a.tenantName || a.ownerName : a.ownerName;
+                    return (
+                      <div key={a.id} className="flex items-center justify-between p-2.5 bg-white rounded-2xl border border-amber-200/80 text-xs shadow-xs">
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900">Flat {a.id}</div>
+                          <div className="text-[11px] text-slate-500 truncate capitalize">
+                            {a.occupantType === 'vacant' ? 'Vacant' : `${a.occupantType} • ${primaryName}`}
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase shrink-0 ${
+                            headcount === 0
+                              ? 'bg-slate-100 text-slate-500 border-slate-200'
+                              : 'bg-amber-100 text-amber-800 border-amber-300'
+                          }`}
+                        >
+                          {headcount} {headcount === 1 ? 'person' : 'people'}
+                        </span>
+                      </div>
+                    );
+                  })
+              )}
             </div>
           </div>
 

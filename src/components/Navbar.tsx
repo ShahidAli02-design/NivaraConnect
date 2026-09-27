@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { 
-  Building2, ShieldAlert, Sparkles, Wifi, WifiOff, 
-  ChevronDown, UserCheck, Shield, Home, Bell, Users, 
-  FileText, Wrench, CreditCard, Calendar, ArrowLeft, 
-  Compass, Globe, Radio
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Building2, ShieldAlert, Sparkles, Wifi, WifiOff,
+  ChevronDown, UserCheck, Shield, Home, Bell, Users,
+  FileText, Wrench, CreditCard, Calendar, ArrowLeft,
+  Compass, Globe, Radio, LogOut, ParkingSquare, Crown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { generateAvatar } from '../utils/avatar';
 import { useRealtime } from '../context/RealtimeContext';
 
 interface NavbarProps {
@@ -16,21 +17,24 @@ interface NavbarProps {
   onOpenSos: () => void;
   onOpenAi: () => void;
   onGoHome?: () => void;
+  onLogout?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ 
-  currentTab, 
-  onSelectTab, 
-  activeTab, 
-  setActiveTab, 
-  onOpenSos, 
+export const Navbar: React.FC<NavbarProps> = ({
+  currentTab,
+  onSelectTab,
+  activeTab,
+  setActiveTab,
+  onOpenSos,
   onOpenAi,
-  onGoHome
+  onGoHome,
+  onLogout
 }) => {
-  const { currentUser, users, switchRole } = useAuth();
+  const { currentUser } = useAuth();
   const { isConnected, notifications } = useRealtime();
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
 
   const selectedTab = currentTab || activeTab || 'dashboard';
   const handleSelect = (tab: string) => {
@@ -49,6 +53,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
+  useEffect(() => {
+    navRef.current?.querySelector<HTMLElement>('[data-active="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [selectedTab]);
+
   const navTabs = [
     { 
       id: currentUser.role === 'admin' ? 'dashboard' : currentUser.role === 'security' ? 'security' : 'resident', 
@@ -61,6 +69,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'billing', label: 'Dues & Bills', icon: CreditCard },
     { id: 'amenities', label: 'Amenities', icon: Calendar },
     { id: 'directory', label: 'Staff & Directory', icon: Users },
+    { id: 'parking', label: 'Live Parking', icon: ParkingSquare },
+    { id: 'residency', label: 'Residency Pass', icon: Crown },
   ];
 
   return (
@@ -69,7 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-18">
           
           {/* Logo & Brand & Home Button */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={onGoHome}
               title="Return to Public Portal"
@@ -81,11 +91,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-extrabold text-slate-900 text-base tracking-tight">Nivara<span className="text-amber-600">Connect</span></span>
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300 hidden sm:inline-block">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300 hidden 2xl:inline-block">
                     Smart Society
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 font-medium hidden sm:block">Sunrise Heights • PRPCEM</p>
+                <p className="text-[11px] text-slate-500 font-medium hidden 2xl:block">Sunrise Heights • PRPCEM</p>
               </div>
             </button>
 
@@ -93,7 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onGoHome && (
               <button
                 onClick={onGoHome}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 ml-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition-all hover:scale-105"
+                className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 ml-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition-all hover:scale-105"
               >
                 <Compass className="w-3.5 h-3.5 text-amber-700" />
                 <span>Public Portal</span>
@@ -102,15 +112,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Center Navigation Tabs (Desktop) */}
-          <nav className="hidden lg:flex items-center gap-1 bg-amber-50/70 p-1.5 rounded-2xl border border-amber-200/70 shadow-xs">
+          <nav
+            ref={navRef}
+            onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}
+            className="hidden lg:flex flex-1 min-w-0 mx-4 items-center gap-1 bg-amber-50/70 p-1.5 rounded-2xl border border-amber-200/70 shadow-xs overflow-x-auto nav-scroll"
+          >
             {navTabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = selectedTab === tab.id || (tab.id === 'dashboard' && selectedTab === 'overview');
               return (
                 <button
                   key={tab.id}
+                  data-active={isActive}
                   onClick={() => handleSelect(tab.id)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-all ${
                     isActive
                       ? 'bg-gold-gradient text-white shadow-sm shadow-amber-500/25'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
@@ -124,12 +139,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Right Action Icons & Profile Switcher */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 shrink-0">
             
             {/* Live SSE Pulse */}
             <div 
               title={isConnected ? 'Connected to Real-time Society Stream' : 'Reconnecting...'}
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white border border-amber-200 text-[11px] font-bold text-slate-700 shadow-xs"
+              className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white border border-amber-200 text-[11px] font-bold text-slate-700 shadow-xs"
             >
               <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 pulse-glow-dot' : 'bg-amber-500'}`} />
               <span className="font-mono text-[10px] text-amber-700">{isConnected ? 'LIVE SYNC' : 'CONNECTING'}</span>
@@ -142,7 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center gap-1.5 px-3 py-2 bg-gold-gradient text-white rounded-xl text-xs font-bold shadow-md shadow-amber-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-100" />
-              <span className="hidden sm:inline">Ask AI</span>
+              <span className="hidden 2xl:inline">Ask AI</span>
             </button>
 
             {/* High Priority SOS Button */}
@@ -198,11 +213,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="flex items-center gap-2 p-1.5 pl-2 rounded-2xl border border-amber-200 bg-white hover:bg-amber-50/80 transition-all text-left shadow-xs cursor-pointer"
               >
                 <img
-                  src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
+                  src={currentUser.avatarUrl || generateAvatar(currentUser.name)}
                   alt={currentUser.name}
                   className="w-7 h-7 rounded-xl object-cover ring-1 ring-amber-300"
                 />
-                <div className="hidden sm:block pr-1">
+                <div className="hidden 2xl:block pr-1">
                   <div className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[110px]">
                     {currentUser.name}
                   </div>
@@ -212,38 +227,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               {showRoleDropdown && (
-                <div className="absolute right-0 mt-3 w-76 bg-white rounded-2xl shadow-2xl border border-amber-200 p-3 z-50 animate-in fade-in zoom-in-95 text-slate-800">
-                  <div className="px-3 py-2 border-b border-amber-100">
-                    <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest">
-                      Role Perspective Switcher
-                    </span>
-                    <p className="text-xs text-slate-500 mt-0.5">Switch role to test each portal:</p>
+                <div className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-2xl border border-amber-200 p-3 z-50 animate-in fade-in zoom-in-95 text-slate-800">
+                  <div className="px-3 py-2 border-b border-amber-100 flex items-center gap-2.5">
+                    <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-9 h-9 rounded-xl object-cover ring-1 ring-amber-200" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-slate-900 truncate">{currentUser.name}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{currentUser.email}</div>
+                    </div>
                   </div>
-                  <div className="space-y-1.5 mt-2">
-                    {users.map((u) => {
-                      const isSelected = u.id === currentUser.id;
-                      return (
-                        <button
-                          key={u.id}
-                          onClick={() => {
-                            switchRole(u.id);
-                            setShowRoleDropdown(false);
-                          }}
-                          className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl text-left transition-all ${
-                            isSelected ? 'bg-amber-50 border border-amber-300 text-slate-900 font-bold' : 'hover:bg-slate-50 text-slate-600'
-                          }`}
-                        >
-                          <img src={u.avatarUrl} alt={u.name} className="w-8 h-8 rounded-lg object-cover ring-1 ring-amber-200" />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs font-bold text-slate-900 truncate">{u.name}</div>
-                            <div className="text-[11px] text-slate-500 truncate">
-                              {u.role === 'admin' ? 'Secretary / Admin' : u.role === 'security' ? 'Gate 1 Security' : `Resident • Flat ${u.apartmentId}`}
-                            </div>
-                          </div>
-                          {isSelected && <span className="w-2 h-2 rounded-full bg-amber-500" />}
-                        </button>
-                      );
-                    })}
+                  <div className="mt-2">
+                    <button
+                      onClick={() => {
+                        setShowRoleDropdown(false);
+                        onLogout?.();
+                      }}
+                      className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-left transition-all text-rose-700 hover:bg-rose-50 font-bold text-xs"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Log Out</span>
+                    </button>
                   </div>
                 </div>
               )}
