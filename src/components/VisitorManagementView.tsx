@@ -359,10 +359,11 @@ export const VisitorManagementView: React.FC = () => {
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Phone:</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+91 98..."
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="10-digit mobile number"
                     className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white"
                   />
                 </div>

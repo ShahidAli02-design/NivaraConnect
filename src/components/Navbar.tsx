@@ -3,7 +3,7 @@ import {
   Building2, ShieldAlert, Sparkles, Wifi, WifiOff,
   ChevronDown, UserCheck, Shield, Home, Bell, Users,
   FileText, Wrench, CreditCard, Calendar, ArrowLeft,
-  Compass, Globe, Radio, LogOut, ParkingSquare, Crown
+  Globe, Radio, LogOut, ParkingSquare, Crown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { generateAvatar } from '../utils/avatar';
@@ -98,17 +98,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <p className="text-[11px] text-slate-500 font-medium hidden 2xl:block">Sunrise Heights • PRPCEM</p>
               </div>
             </button>
-
-            {/* Back to Public Home Button */}
-            {onGoHome && (
-              <button
-                onClick={onGoHome}
-                className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 ml-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition-all hover:scale-105"
-              >
-                <Compass className="w-3.5 h-3.5 text-amber-700" />
-                <span>Public Portal</span>
-              </button>
-            )}
           </div>
 
           {/* Center Navigation Tabs (Desktop) */}
@@ -256,15 +245,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Mobile Navigation Tabs */}
         <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto py-2.5 border-t border-amber-100 no-scrollbar">
-          {onGoHome && (
-            <button
-              onClick={onGoHome}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 whitespace-nowrap bg-amber-100 text-amber-800 border border-amber-200"
-            >
-              <Compass className="w-3.5 h-3.5" />
-              Public Home
-            </button>
-          )}
           {navTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = selectedTab === tab.id;

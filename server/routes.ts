@@ -5,6 +5,7 @@ import { isValidAadhaar, AADHAAR_ERROR } from '../src/utils/aadhaar';
 import { generateAvatar } from '../src/utils/avatar';
 import { createParkingAndPassRouter, releaseSlot } from './parkingAndPasses';
 import { createBillingRouter, normalizeBill } from './billingAdmin';
+import { sendAccountApprovedEmail } from './mailer';
 import { askSocietyAiAssistant, triageComplaintAi, draftNoticeAi } from './gemini';
 import { RealtimeEvent, Visitor, Complaint, SOSAlert, Notice, MaintenanceBill, AmenityBooking, ForumPost, User, SignupRequest } from '../src/types';
 
@@ -295,6 +296,10 @@ apiRouter.post('/admin/signup-requests/:id/approve', (req: Request, res: Respons
     payload: sanitizeSignupRequest(signupRequest),
     timestamp: new Date().toISOString(),
   });
+
+  // Fire-and-forget — never make the Secretary wait on an email provider,
+  // and a failed send should never undo the approval that already happened.
+  sendAccountApprovedEmail(newUser.email, newUser.name, newUser.role).catch(() => {});
 
   res.json({ success: true, user: sanitizeUser(newUser), request: sanitizeSignupRequest(signupRequest) });
 });

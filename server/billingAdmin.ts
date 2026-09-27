@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from './db';
 import { MaintenanceBill, RealtimeEvent } from '../src/types';
+import { sendMaintenanceBillEmail } from './mailer';
 
 type Broadcast = (event: RealtimeEvent) => void;
 
@@ -80,6 +81,16 @@ export function createBillingRouter(broadcast: Broadcast) {
       apt.duesBalance += total;
       created.push(bill);
       broadcast({ type: 'BILL_CREATED', payload: bill, timestamp: new Date().toISOString(), targetApartmentId: apt.id });
+
+      // Prefer the actual login account for this flat (so tenants get billed
+      // at their own address, not the owner's), falling back to the
+      // apartment record's owner email for flats with no registered user yet.
+      const residentUser = db.users.find(u => u.role === 'resident' && u.apartmentId === apt.id);
+      const billToEmail = residentUser?.email || apt.ownerEmail;
+      const billToName = residentUser?.name || bill.residentName;
+      if (billToEmail) {
+        sendMaintenanceBillEmail(billToEmail, billToName, bill).catch(() => {});
+      }
     });
 
     if (created.length === 0) {
