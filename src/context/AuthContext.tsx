@@ -21,6 +21,7 @@ interface AuthContextType {
   switchRole: (userId: string) => void;
   loginUser: (email: string, password: string) => Promise<User>;
   registerUser: (data: RegisterData) => Promise<string>;
+  resetPassword: (email: string, phone: string, newPassword: string) => Promise<string>;
   logoutUser: () => void;
   isLoading: boolean;
 }
@@ -48,6 +49,7 @@ const AuthContext = createContext<AuthContextType>({
   switchRole: () => {},
   loginUser: async () => defaultUser,
   registerUser: async () => '',
+  resetPassword: async () => '',
   logoutUser: () => {},
   isLoading: false,
 });
@@ -133,6 +135,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resetPassword = async (email: string, phone: string, newPassword: string): Promise<string> => {
+    const res = await api.resetPassword({ email, phone, newPassword });
+    return res.message || 'Password reset successfully.';
+  };
+
   const logoutUser = () => {
     persistSession(defaultUser, false);
   };
@@ -147,6 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchRole,
         loginUser,
         registerUser,
+        resetPassword,
         logoutUser,
         isLoading,
       }}

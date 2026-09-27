@@ -5,7 +5,7 @@ import {
   Send, Phone, Radio, KeyRound, Lock, User, Megaphone,
   Droplets, QrCode, Zap, Compass, Menu, X, Home, MapPin,
   Calendar, Layers, MessageSquare, Award, ArrowUpRight,
-  UserPlus, AlertCircle, Loader2, Mail, Clock
+  UserPlus, AlertCircle, Loader2, Mail, Clock, Eye, EyeOff
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -22,7 +22,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenSos,
   onOpenAi,
 }) => {
-  const { loginUser, registerUser } = useAuth();
+  const { loginUser, registerUser, resetPassword } = useAuth();
 
   // Navigation & UI States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -31,12 +31,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   // Login / Sign Up Modal State
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [authView, setAuthView] = useState<'login' | 'signup' | 'signup-success'>('login');
+  const [authView, setAuthView] = useState<'login' | 'signup' | 'signup-success' | 'forgot' | 'forgot-success'>('login');
   const [selectedRole, setSelectedRole] = useState<UserRole>('resident');
 
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
@@ -46,11 +47,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [suPhone, setSuPhone] = useState('');
   const [suPassword, setSuPassword] = useState('');
   const [suConfirmPassword, setSuConfirmPassword] = useState('');
+  const [showSuPassword, setShowSuPassword] = useState(false);
+  const [showSuConfirmPassword, setShowSuConfirmPassword] = useState(false);
   const [suApartmentUnit, setSuApartmentUnit] = useState('A-402');
   const [suResidentType, setSuResidentType] = useState<'owner' | 'tenant'>('owner');
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [signupError, setSignupError] = useState<string | null>(null);
   const [signupMessage, setSignupMessage] = useState<string | null>(null);
+
+  // Forgot Password form
+  const [fpEmail, setFpEmail] = useState('');
+  const [fpPhone, setFpPhone] = useState('');
+  const [fpNewPassword, setFpNewPassword] = useState('');
+  const [fpConfirmPassword, setFpConfirmPassword] = useState('');
+  const [showFpPassword, setShowFpPassword] = useState(false);
+  const [showFpConfirmPassword, setShowFpConfirmPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotMessage, setForgotMessage] = useState<string | null>(null);
 
   // Suggestion Form State
   const [sugName, setSugName] = useState('');
@@ -69,8 +83,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const resetAuthForms = () => {
     setLoginPassword('');
     setLoginError(null);
+    setShowLoginPassword(false);
     setSuName(''); setSuEmail(''); setSuPhone(''); setSuPassword(''); setSuConfirmPassword('');
     setSignupError(null); setSignupMessage(null);
+    setShowSuPassword(false); setShowSuConfirmPassword(false);
+    setFpEmail(''); setFpPhone(''); setFpNewPassword(''); setFpConfirmPassword('');
+    setForgotError(null); setForgotMessage(null);
+    setShowFpPassword(false); setShowFpConfirmPassword(false);
   };
 
   const handleOpenLogin = (role: UserRole = 'resident') => {
@@ -107,6 +126,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     e.preventDefault();
     setSignupError(null);
 
+    if (suPhone && suPhone.length !== 10) {
+      setSignupError('Phone number must be exactly 10 digits.');
+      return;
+    }
     if (suPassword.length < 6) {
       setSignupError('Password must be at least 6 characters long.');
       return;
@@ -133,6 +156,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setSignupError(err?.message || 'Could not submit your request. Please try again.');
     } finally {
       setIsSigningUp(false);
+    }
+  };
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+
+    if (fpPhone.length !== 10) {
+      setForgotError('Enter the 10-digit phone number registered on this account.');
+      return;
+    }
+    if (fpNewPassword.length < 6) {
+      setForgotError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (fpNewPassword !== fpConfirmPassword) {
+      setForgotError('Passwords do not match.');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const message = await resetPassword(fpEmail, fpPhone, fpNewPassword);
+      setForgotMessage(message);
+      setAuthView('forgot-success');
+    } catch (err: any) {
+      setForgotError(err?.message || 'Could not reset your password. Please try again.');
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -955,6 +1007,132 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
+            ) : authView === 'forgot-success' ? (
+              /* --- Password Reset Success Panel --- */
+              <div className="text-center py-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center mx-auto mb-4 shadow-md shadow-emerald-500/30">
+                  <CheckCircle2 className="w-7 h-7" />
+                </div>
+                <h3 className="text-xl font-black text-slate-900">Password Reset!</h3>
+                <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                  {forgotMessage || 'Your password has been reset successfully.'}
+                </p>
+                <button
+                  onClick={() => { setAuthView('login'); resetAuthForms(); }}
+                  className="w-full mt-6 py-3 bg-gold-gradient text-white font-bold text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2"
+                >
+                  <span>Back to Login</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            ) : authView === 'forgot' ? (
+              /* --- Forgot Password Panel --- */
+              <div>
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-gold-gradient text-white flex items-center justify-center mx-auto mb-3 shadow-md shadow-amber-500/30">
+                    <KeyRound className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900">Reset Password</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Verify your account with your registered email and phone number, then set a new password.
+                  </p>
+                </div>
+
+                <form onSubmit={handleForgotSubmit} className="space-y-4">
+                  {forgotError && (
+                    <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{forgotError}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
+                    <input
+                      type="email"
+                      required
+                      value={fpEmail}
+                      onChange={(e) => setFpEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Registered Phone Number</label>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      required
+                      value={fpPhone}
+                      onChange={(e) => setFpPhone(e.target.value.replace(/\D/g, '').slice(-10))}
+                      placeholder="10-digit mobile number"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showFpPassword ? 'text' : 'password'}
+                        required
+                        value={fpNewPassword}
+                        onChange={(e) => setFpNewPassword(e.target.value)}
+                        placeholder="Min. 6 characters"
+                        className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowFpPassword(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        tabIndex={-1}
+                      >
+                        {showFpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Confirm New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showFpConfirmPassword ? 'text' : 'password'}
+                        required
+                        value={fpConfirmPassword}
+                        onChange={(e) => setFpConfirmPassword(e.target.value)}
+                        placeholder="Re-enter new password"
+                        className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowFpConfirmPassword(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        tabIndex={-1}
+                      >
+                        {showFpConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isResettingPassword}
+                    className="w-full mt-2 py-3 bg-gold-gradient text-white font-bold text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {isResettingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : <>
+                      <span>Reset Password</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>}
+                  </button>
+
+                  <p className="text-center text-[11px] text-slate-400">
+                    <button type="button" onClick={() => { setAuthView('login'); setForgotError(null); }} className="text-amber-700 font-bold hover:underline">
+                      Back to Login
+                    </button>
+                  </p>
+                </form>
+              </div>
             ) : (
               <>
                 <div className="text-center mb-6">
@@ -1046,15 +1224,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
-                      <input
-                        type="password"
-                        required
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700">Password</label>
+                        <button
+                          type="button"
+                          onClick={() => { setAuthView('forgot'); setLoginError(null); }}
+                          className="text-[11px] text-amber-700 font-bold hover:underline"
+                        >
+                          Forgot password?
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showLoginPassword ? 'text' : 'password'}
+                          required
+                          value={loginPassword}
+                          onChange={(e) => setLoginPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowLoginPassword(v => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          tabIndex={-1}
+                        >
+                          {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
 
                     <button
@@ -1112,10 +1309,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">Phone</label>
                         <input
-                          type="text"
+                          type="tel"
+                          inputMode="numeric"
                           value={suPhone}
-                          onChange={(e) => setSuPhone(e.target.value)}
-                          placeholder="+91 98765 43210"
+                          onChange={(e) => setSuPhone(e.target.value.replace(/\D/g, '').slice(-10))}
+                          placeholder="10-digit mobile number"
                           className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
                         />
                       </div>
@@ -1124,25 +1322,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">Password</label>
-                        <input
-                          type="password"
-                          required
-                          value={suPassword}
-                          onChange={(e) => setSuPassword(e.target.value)}
-                          placeholder="Min. 6 characters"
-                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showSuPassword ? 'text' : 'password'}
+                            required
+                            value={suPassword}
+                            onChange={(e) => setSuPassword(e.target.value)}
+                            placeholder="Min. 6 characters"
+                            className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSuPassword(v => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            tabIndex={-1}
+                          >
+                            {showSuPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">Confirm Password</label>
-                        <input
-                          type="password"
-                          required
-                          value={suConfirmPassword}
-                          onChange={(e) => setSuConfirmPassword(e.target.value)}
-                          placeholder="Re-enter password"
-                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showSuConfirmPassword ? 'text' : 'password'}
+                            required
+                            value={suConfirmPassword}
+                            onChange={(e) => setSuConfirmPassword(e.target.value)}
+                            placeholder="Re-enter password"
+                            className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSuConfirmPassword(v => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            tabIndex={-1}
+                          >
+                            {showSuConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                     </div>
 

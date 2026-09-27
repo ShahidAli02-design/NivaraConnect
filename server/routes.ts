@@ -202,6 +202,41 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
   });
 });
 
+// No email/SMS service is configured for this app, so "forgot password" can't
+// send a reset link/OTP. Instead it verifies identity with the phone number
+// the account was registered with (last 10 digits, ignoring +91/spaces/etc.)
+// before allowing a new password to be set directly.
+function last10Digits(phone: string): string {
+  return String(phone || '').replace(/\D/g, '').slice(-10);
+}
+
+apiRouter.post('/auth/reset-password', (req: Request, res: Response) => {
+  const { email, phone, newPassword } = req.body;
+
+  if (!email || !phone || !newPassword) {
+    return res.status(400).json({ success: false, error: 'Email, phone number and new password are required.' });
+  }
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
+  }
+
+  const user = db.users.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'No account found with this email address.' });
+  }
+
+  const storedDigits = last10Digits(user.phone);
+  const enteredDigits = last10Digits(phone);
+  if (!storedDigits || enteredDigits.length !== 10 || storedDigits !== enteredDigits) {
+    return res.status(401).json({ success: false, error: 'The phone number does not match our records for this account.' });
+  }
+
+  user.passwordHash = bcrypt.hashSync(newPassword, 10);
+  db.scheduleSave();
+
+  res.json({ success: true, message: 'Password reset successfully. You can now log in with your new password.' });
+});
+
 // ----------------------------------------------------
 // ACCOUNT APPROVAL (SECRETARY / ADMIN)
 // ----------------------------------------------------

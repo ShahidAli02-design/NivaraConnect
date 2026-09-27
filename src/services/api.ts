@@ -69,6 +69,14 @@ export const api = {
     });
   },
 
+  async resetPassword(data: { email: string; phone: string; newPassword: string }): Promise<{ success: boolean; message: string }> {
+    return request<{ success: boolean; message: string }>(`${API_BASE}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
   // Account approval (Secretary)
   async getSignupRequests(status?: string): Promise<SignupRequest[]> {
     const q = status ? `?status=${status}` : '';
