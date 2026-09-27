@@ -741,6 +741,7 @@ export const ResidentPortal: React.FC<ResidentPortalProps> = ({ onNavigate, onOp
                       inputMode="numeric"
                       value={guestPhone}
                       onChange={(e) => setGuestPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      maxLength={10}
                       placeholder="10-digit mobile number"
                       className="w-full text-xs px-3 py-2.5 rounded-xl border border-amber-200/80 bg-slate-50 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500"
                     />
@@ -934,6 +935,7 @@ export const ResidentPortal: React.FC<ResidentPortalProps> = ({ onNavigate, onOp
                   inputMode="numeric"
                   value={famPhone}
                   onChange={(e) => setFamPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  maxLength={10}
                   placeholder="10-digit mobile number"
                   className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-amber-200/80 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-500"
                 />

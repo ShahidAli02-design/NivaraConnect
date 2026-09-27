@@ -370,7 +370,7 @@ export const SecurityGateDesk: React.FC<SecurityGateDeskProps> = ({ onOpenSos })
                           inputMode="numeric"
                           maxLength={12}
                           value={scanAadhaar}
-                          onChange={(e) => setScanAadhaar(e.target.value.replace(/\D/g, ''))}
+                          onChange={(e) => setScanAadhaar(e.target.value.replace(/\D/g, '').slice(0, 12))}
                           placeholder="e.g. 234567890123"
                           className="w-full text-xs font-mono px-3.5 py-2.5 rounded-xl border border-emerald-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                         />
@@ -504,6 +504,7 @@ export const SecurityGateDesk: React.FC<SecurityGateDeskProps> = ({ onOpenSos })
                     inputMode="numeric"
                     value={vPhone}
                     onChange={(e) => setVPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    maxLength={10}
                     placeholder="10-digit mobile number"
                     className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-mono focus:outline-none focus:border-amber-500 focus:bg-white"
                   />
@@ -599,7 +600,7 @@ export const SecurityGateDesk: React.FC<SecurityGateDeskProps> = ({ onOpenSos })
                         inputMode="numeric"
                         maxLength={12}
                         value={aadhaarInputs[v.id] || ''}
-                        onChange={(e) => handleAadhaarInputChange(v.id, e.target.value.replace(/\D/g, ''))}
+                        onChange={(e) => handleAadhaarInputChange(v.id, e.target.value.replace(/\D/g, '').slice(0, 12))}
                         placeholder="12-digit Aadhaar number"
                         className="text-xs font-mono px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                       />

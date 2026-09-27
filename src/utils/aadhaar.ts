@@ -28,12 +28,30 @@ export function isValidAadhaar(value: string): boolean {
   const num = String(value || '').trim();
   if (!/^[2-9]\d{11}$/.test(num)) return false;
 
+  // The Verhoeff checksum only guarantees catching single-digit and adjacent-
+  // transposition errors — it does NOT guarantee rejecting a placeholder like
+  // "999999999999" or "234567890123" (some of these pass the checksum purely
+  // by coincidence). Reject obviously-fake patterns outright before even
+  // running the checksum, since a real UIDAI-issued number is never one of
+  // these.
+  if (/^(\d)\1{11}$/.test(num)) return false; // all 12 digits identical
+  if (isSequential(num)) return false;
+
   let c = 0;
   const digits = num.split('').reverse().map(Number);
   for (let i = 0; i < digits.length; i++) {
     c = D[c][P[i % 8][digits[i]]];
   }
   return c === 0;
+}
+
+// True for 12 digits that are a run of consecutive numbers, ascending or
+// descending, wrapping 9 -> 0 (e.g. "234567890123" or "987654321098").
+function isSequential(num: string): boolean {
+  const digits = num.split('').map(Number);
+  const ascendingRun = digits.every((d, i) => i === 0 || d === (digits[i - 1] + 1) % 10);
+  const descendingRun = digits.every((d, i) => i === 0 || d === (digits[i - 1] + 9) % 10);
+  return ascendingRun || descendingRun;
 }
 
 export const AADHAAR_ERROR =
