@@ -1065,7 +1065,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       inputMode="numeric"
                       required
                       value={fpPhone}
-                      onChange={(e) => setFpPhone(e.target.value.replace(/\D/g, '').slice(-10))}
+                      onChange={(e) => setFpPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                       placeholder="10-digit mobile number"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
                     />
@@ -1312,7 +1312,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           type="tel"
                           inputMode="numeric"
                           value={suPhone}
-                          onChange={(e) => setSuPhone(e.target.value.replace(/\D/g, '').slice(-10))}
+                          onChange={(e) => setSuPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                           placeholder="10-digit mobile number"
                           className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
                         />
