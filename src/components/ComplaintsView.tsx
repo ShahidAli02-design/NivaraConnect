@@ -27,6 +27,8 @@ export const ComplaintsView: React.FC = () => {
   const [assignedStaffInput, setAssignedStaffInput] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState('');
   const [statusUpdateInput, setStatusUpdateInput] = useState<ComplaintStatus>('In Progress');
+  const [isUpdatingTicket, setIsUpdatingTicket] = useState(false);
+  const [updateSavedMsg, setUpdateSavedMsg] = useState(false);
 
   // New Ticket Modal
   const [showNewModal, setShowNewModal] = useState(false);
@@ -92,8 +94,10 @@ export const ComplaintsView: React.FC = () => {
   };
 
   const handleUpdateTicket = async () => {
-    if (!selectedComplaint) return;
+    if (!selectedComplaint || isUpdatingTicket) return;
     const worker = staff.find(s => s.id === selectedStaffId);
+    setIsUpdatingTicket(true);
+    setUpdateSavedMsg(false);
     try {
       await api.updateComplaint(selectedComplaint.id, {
         status: statusUpdateInput,
@@ -105,9 +109,14 @@ export const ComplaintsView: React.FC = () => {
       });
       triggerSound('success');
       setTimelineComment('');
-      loadComplaints();
+      await loadComplaints();
+      setUpdateSavedMsg(true);
+      setTimeout(() => setUpdateSavedMsg(false), 2500);
     } catch (e) {
       console.error('Failed to update ticket', e);
+      window.alert('Could not save the update. Please try again.');
+    } finally {
+      setIsUpdatingTicket(false);
     }
   };
 
@@ -215,6 +224,7 @@ export const ComplaintsView: React.FC = () => {
                 setStatusUpdateInput(c.status);
                 setAssignedStaffInput(c.assignedStaff || '');
                 setSelectedStaffId('');
+                setUpdateSavedMsg(false);
               }}
               className="bg-white rounded-2xl border border-amber-200/70 hover:border-amber-300 hover:bg-amber-50/40 shadow-xs p-5 cursor-pointer transition-all space-y-3 flex flex-col justify-between"
             >
@@ -375,12 +385,23 @@ export const ComplaintsView: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 text-slate-800 rounded-lg border border-slate-200 focus:outline-none focus:border-amber-500 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-amber-200"
                   />
                 </div>
-                <button
-                  onClick={handleUpdateTicket}
-                  className="px-4 py-2 btn-gold font-semibold rounded-lg transition-colors"
-                >
-                  Save Dispatch Updates
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleUpdateTicket}
+                    disabled={isUpdatingTicket}
+                    className="px-4 py-2 btn-gold font-semibold rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isUpdatingTicket && (
+                      <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    )}
+                    {isUpdatingTicket ? 'Saving...' : 'Save Dispatch Updates'}
+                  </button>
+                  {updateSavedMsg && (
+                    <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                      <CheckCircle2 className="w-4 h-4" /> Saved
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 
