@@ -74,21 +74,29 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
-      
+
       const now = ctx.currentTime;
+      const duration = 12; // seconds — a real emergency siren needs to actually be heard
+      const sweepTime = 0.3;
+
+      // Keep sweeping 440Hz <-> 880Hz for the full duration instead of just twice.
       osc.frequency.setValueAtTime(440, now);
-      osc.frequency.linearRampToValueAtTime(880, now + 0.3);
-      osc.frequency.linearRampToValueAtTime(440, now + 0.6);
-      osc.frequency.linearRampToValueAtTime(880, now + 0.9);
-      osc.frequency.linearRampToValueAtTime(440, now + 1.2);
+      let t = now;
+      let up = true;
+      while (t < now + duration) {
+        t += sweepTime;
+        osc.frequency.linearRampToValueAtTime(up ? 880 : 440, t);
+        up = !up;
+      }
 
       gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+      gain.gain.setValueAtTime(0.15, now + duration - 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(now);
-      osc.stop(now + 1.3);
+      osc.stop(now + duration);
     } catch (e) {
       console.warn('Audio feedback not supported', e);
     }
