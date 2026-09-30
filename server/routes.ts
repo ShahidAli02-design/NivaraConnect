@@ -7,7 +7,7 @@ import { createParkingAndPassRouter, releaseSlot } from './parkingAndPasses';
 import { createBillingRouter, normalizeBill } from './billingAdmin';
 import { sendAccountApprovedEmail } from './mailer';
 import { askSocietyAiAssistant, triageComplaintAi, draftNoticeAi } from './gemini';
-import { RealtimeEvent, Visitor, Complaint, SOSAlert, Notice, MaintenanceBill, AmenityBooking, ForumPost, User, SignupRequest, FundTransaction } from '../src/types';
+import { RealtimeEvent, Visitor, Complaint, SOSAlert, Notice, MaintenanceBill, AmenityBooking, ForumPost, User, SignupRequest, FundTransaction, SocietyStaff } from '../src/types';
 
 // Never leak password hashes to the client
 function sanitizeUser(user: User) {
@@ -1002,6 +1002,44 @@ apiRouter.post('/forum/:id/comment', (req: Request, res: Response) => {
 // ----------------------------------------------------
 apiRouter.get('/staff', (req: Request, res: Response) => {
   res.json(db.staff);
+});
+
+// Secretary-only (enforced client-side, like the rest of this app's role
+// gating). Adds a new on-duty worker so they can be assigned to complaints.
+apiRouter.post('/staff', (req: Request, res: Response) => {
+  const { name, role, phone, shift, status } = req.body;
+
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ error: 'Worker name is required.' });
+  }
+  if (!role || !String(role).trim()) {
+    return res.status(400).json({ error: 'A role (e.g. Plumber, Electrician) is required.' });
+  }
+
+  const worker: SocietyStaff = {
+    id: `staff-${Date.now()}`,
+    name: String(name).trim(),
+    role: String(role).trim(),
+    phone: phone || '',
+    shift: shift || 'General (9 AM - 6 PM)',
+    status: status || 'On Duty',
+    avatarUrl: generateAvatar(String(name).trim()),
+  };
+
+  db.staff.push(worker);
+  db.scheduleSave();
+
+  res.json({ success: true, worker });
+});
+
+apiRouter.delete('/staff/:id', (req: Request, res: Response) => {
+  const idx = db.staff.findIndex(s => s.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Worker not found.' });
+
+  db.staff.splice(idx, 1);
+  db.scheduleSave();
+
+  res.json({ success: true });
 });
 
 // ----------------------------------------------------

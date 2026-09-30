@@ -429,6 +429,26 @@ export const api = {
     return request<SocietyStaff[]>(`${API_BASE}/staff`);
   },
 
+  async createStaff(data: {
+    name: string;
+    role: string;
+    phone?: string;
+    shift?: string;
+    status?: string;
+  }): Promise<{ success: boolean; worker: SocietyStaff }> {
+    return request<{ success: boolean; worker: SocietyStaff }>(`${API_BASE}/staff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteStaff(id: string): Promise<{ success: boolean }> {
+    return request<{ success: boolean }>(`${API_BASE}/staff/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
   // AI
   async askAi(message: string, role: string, apartmentId?: string): Promise<{ reply: string }> {
     return request<{ reply: string }>(`${API_BASE}/ai/chat`, {

@@ -6,13 +6,14 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
 import { api } from '../services/api';
-import { Complaint, ComplaintCategory, ComplaintPriority, ComplaintStatus } from '../types';
+import { Complaint, ComplaintCategory, ComplaintPriority, ComplaintStatus, SocietyStaff } from '../types';
 
 export const ComplaintsView: React.FC = () => {
   const { currentUser } = useAuth();
   const { refreshTrigger, triggerSound } = useRealtime();
 
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [staff, setStaff] = useState<SocietyStaff[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -24,6 +25,7 @@ export const ComplaintsView: React.FC = () => {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [timelineComment, setTimelineComment] = useState('');
   const [assignedStaffInput, setAssignedStaffInput] = useState('');
+  const [selectedStaffId, setSelectedStaffId] = useState('');
   const [statusUpdateInput, setStatusUpdateInput] = useState<ComplaintStatus>('In Progress');
 
   // New Ticket Modal
@@ -37,6 +39,7 @@ export const ComplaintsView: React.FC = () => {
 
   useEffect(() => {
     loadComplaints();
+    loadStaff();
   }, [refreshTrigger]);
 
   const loadComplaints = async () => {
@@ -51,6 +54,14 @@ export const ComplaintsView: React.FC = () => {
       console.error('Failed to load complaints', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStaff = async () => {
+    try {
+      setStaff(await api.getStaff());
+    } catch (e) {
+      console.error('Failed to load staff', e);
     }
   };
 
@@ -82,10 +93,12 @@ export const ComplaintsView: React.FC = () => {
 
   const handleUpdateTicket = async () => {
     if (!selectedComplaint) return;
+    const worker = staff.find(s => s.id === selectedStaffId);
     try {
       await api.updateComplaint(selectedComplaint.id, {
         status: statusUpdateInput,
-        assignedStaff: assignedStaffInput || selectedComplaint.assignedStaff,
+        assignedStaff: worker ? `${worker.name} (${worker.role})` : (assignedStaffInput || selectedComplaint.assignedStaff),
+        assignedStaffPhone: worker?.phone,
         comment: timelineComment || `Status updated to ${statusUpdateInput}`,
         updatedBy: currentUser.name,
         authorRole: currentUser.role,
@@ -201,6 +214,7 @@ export const ComplaintsView: React.FC = () => {
                 setSelectedComplaint(c);
                 setStatusUpdateInput(c.status);
                 setAssignedStaffInput(c.assignedStaff || '');
+                setSelectedStaffId('');
               }}
               className="bg-white rounded-2xl border border-amber-200/70 hover:border-amber-300 hover:bg-amber-50/40 shadow-xs p-5 cursor-pointer transition-all space-y-3 flex flex-col justify-between"
             >
@@ -326,15 +340,30 @@ export const ComplaintsView: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-slate-500 mb-1">Assign Staff / Vendor:</label>
-                    <input
-                      type="text"
-                      value={assignedStaffInput}
-                      onChange={(e) => setAssignedStaffInput(e.target.value)}
-                      placeholder="e.g. Suresh Kumar (Plumber)"
-                      className="w-full px-3 py-2 bg-slate-50 text-slate-800 rounded-lg border border-slate-200 focus:outline-none focus:border-amber-500 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-amber-200"
-                    />
+                    <label className="block text-slate-500 mb-1">Assign On-Duty Worker:</label>
+                    <select
+                      value={selectedStaffId}
+                      onChange={(e) => setSelectedStaffId(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 text-slate-800 rounded-lg border border-slate-200 font-semibold focus:outline-none focus:border-amber-500 focus:bg-white"
+                    >
+                      <option value="">— Select a worker —</option>
+                      {staff.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.role}) {s.status !== 'On Duty' ? `— ${s.status}` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1">Or type an external vendor name:</label>
+                  <input
+                    type="text"
+                    value={assignedStaffInput}
+                    onChange={(e) => setAssignedStaffInput(e.target.value)}
+                    placeholder="e.g. Schindler Elevator Service"
+                    className="w-full px-3 py-2 bg-slate-50 text-slate-800 rounded-lg border border-slate-200 focus:outline-none focus:border-amber-500 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-amber-200"
+                  />
                 </div>
                 <div>
                   <label className="block text-slate-500 mb-1">Timeline Note / Work Update:</label>
