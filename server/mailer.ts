@@ -1,39 +1,75 @@
-// Sends email via the Resend HTTP API (https://resend.com) — a plain fetch
-// call, no SMTP setup needed. If RESEND_API_KEY isn't set, email sending is
-// silently skipped — the app keeps working, it just won't mail anyone.
-// Mirrors the same "optional integration" pattern as server/gemini.ts.
+import nodemailer, { type Transporter } from 'nodemailer';
+
+// Primary path: Gmail SMTP via an App Password (GMAIL_USER / GMAIL_APP_PASSWORD).
+// Unlike a transactional API's free tier (Resend, SendGrid, ...), Gmail SMTP
+// can deliver to ANY recipient without needing a verified sending domain —
+// which is what this app needs, since residents/secretary/security all have
+// different, real email addresses and there's no owned domain to verify.
 //
-// Without a verified sending domain on Resend, the free tier can only
-// deliver to the email address that owns the Resend account itself — that's
-// a Resend account limit, not something this code can work around. Once a
-// domain is verified, RESEND_FROM_EMAIL can point at that domain and mail
-// will deliver to any recipient.
+// Falls back to the Resend HTTP API (RESEND_API_KEY) if Gmail isn't
+// configured, purely as a secondary option — note Resend's free tier is
+// sandbox-restricted to the account owner's own email until a domain is
+// verified there.
+//
+// If neither is configured, email sending is silently skipped — the app
+// keeps working, it just won't mail anyone. Mirrors the same "optional
+// integration" pattern as server/gemini.ts.
+let transporter: Transporter | null = null;
 let warnedMissingConfig = false;
 
-async function sendMail(to: string, subject: string, html: string): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    if (!warnedMissingConfig) {
-      console.warn('RESEND_API_KEY not set — email notifications are disabled.');
-      warnedMissingConfig = true;
-    }
-    return;
+function getTransporter(): Transporter | null {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) return null;
+
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
+    });
   }
+  return transporter;
+}
+
+async function sendViaGmail(to: string, subject: string, html: string): Promise<boolean> {
+  const t = getTransporter();
+  if (!t) return false;
+  await t.sendMail({
+    from: `"NivaraConnect" <${process.env.GMAIL_USER}>`,
+    to,
+    subject,
+    html,
+  });
+  return true;
+}
+
+async function sendViaResend(to: string, subject: string, html: string): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return false;
 
   const from = process.env.RESEND_FROM_EMAIL || 'NivaraConnect <onboarding@resend.dev>';
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ from, to, subject, html }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Resend API error: ${res.status} ${body}`);
+  }
+  return true;
+}
 
+async function sendMail(to: string, subject: string, html: string): Promise<void> {
   try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ from, to, subject, html }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      console.error(`Resend API error sending to ${to}: ${res.status} ${body}`);
+    if (await sendViaGmail(to, subject, html)) return;
+    if (await sendViaResend(to, subject, html)) return;
+    if (!warnedMissingConfig) {
+      console.warn('No email provider configured (GMAIL_USER/GMAIL_APP_PASSWORD or RESEND_API_KEY) — email notifications are disabled.');
+      warnedMissingConfig = true;
     }
   } catch (err) {
     // Never let a failed email break the actual app action (approval, bill
