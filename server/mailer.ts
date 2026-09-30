@@ -1,4 +1,12 @@
 import nodemailer, { type Transporter } from 'nodemailer';
+import dns from 'dns';
+
+// Render's (and many container hosts') outbound network only supports IPv4,
+// but Node's default DNS resolution can still hand back smtp.gmail.com's
+// IPv6 address first, and the connection then fails with ENETUNREACH. This
+// forces IPv4 to be tried first for every outbound connection in this
+// process — safe globally, since nothing else here needs IPv6.
+dns.setDefaultResultOrder('ipv4first');
 
 // Primary path: Gmail SMTP via an App Password (GMAIL_USER / GMAIL_APP_PASSWORD).
 // Unlike a transactional API's free tier (Resend, SendGrid, ...), Gmail SMTP
