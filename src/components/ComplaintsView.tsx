@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
 import { api } from '../services/api';
 import { Complaint, ComplaintCategory, ComplaintPriority, ComplaintStatus, SocietyStaff } from '../types';
+import { fmtDateTime } from '../utils/format';
 
 export const ComplaintsView: React.FC = () => {
   const { currentUser } = useAuth();
@@ -417,8 +418,8 @@ export const ComplaintsView: React.FC = () => {
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-slate-800">{item.action}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">
+                          {fmtDateTime(item.timestamp)}
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-500">By {item.authorName} ({item.authorRole})</div>
