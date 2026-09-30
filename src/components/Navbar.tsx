@@ -3,7 +3,7 @@ import {
   Building2, ShieldAlert, Sparkles, Wifi, WifiOff,
   ChevronDown, UserCheck, Shield, Home, Bell, Users,
   FileText, Wrench, CreditCard, Calendar, ArrowLeft,
-  Globe, Radio, LogOut, ParkingSquare, Crown
+  Globe, Radio, LogOut, ParkingSquare, Crown, Wallet, UserMinus
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { generateAvatar } from '../utils/avatar';
@@ -71,6 +71,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'directory', label: 'Staff & Directory', icon: Users },
     { id: 'parking', label: 'Live Parking', icon: ParkingSquare },
     { id: 'residency', label: 'Residency Pass', icon: Crown },
+    { id: 'fund', label: 'Society Fund', icon: Wallet },
+    ...(currentUser.role === 'admin' ? [{ id: 'accounts', label: 'Manage Accounts', icon: UserMinus }] : []),
   ];
 
   return (

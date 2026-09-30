@@ -16,13 +16,15 @@ import { AmenitiesView } from './components/AmenitiesView';
 import { DirectoryView } from './components/DirectoryView';
 import { ParkingView } from './components/ParkingView';
 import { ResidencyPassView } from './components/ResidencyPassView';
+import { SocietyFundView } from './components/SocietyFundView';
+import { ManageAccountsView } from './components/ManageAccountsView';
 import { SOSModal } from './components/SOSModal';
 import { VisitorApprovalModal } from './components/VisitorApprovalModal';
 import { AiAssistantDrawer } from './components/AiAssistantDrawer';
 import { Sparkles, Radio, Compass, Play } from 'lucide-react';
 import { UserRole } from './types';
 
-const PROTECTED_TABS = ['dashboard', 'resident', 'security', 'visitors', 'complaints', 'notices', 'billing', 'amenities', 'directory', 'parking', 'residency'];
+const PROTECTED_TABS = ['dashboard', 'resident', 'security', 'visitors', 'complaints', 'notices', 'billing', 'amenities', 'directory', 'parking', 'residency', 'fund', 'accounts'];
 
 const AppContent: React.FC = () => {
   const { currentUser, isAuthenticated, logoutUser } = useAuth();
@@ -90,6 +92,10 @@ const AppContent: React.FC = () => {
         return <ParkingView />;
       case 'residency':
         return <ResidencyPassView />;
+      case 'fund':
+        return <SocietyFundView />;
+      case 'accounts':
+        return <ManageAccountsView />;
       default:
         return (
           <LandingPage
