@@ -31,9 +31,16 @@ function getTransporter(): Transporter | null {
   if (!user || !pass) return null;
 
   if (!transporter) {
+    // Explicit host/port instead of the 'gmail' shorthand (which defaults to
+    // port 465/implicit TLS): some hosts block 465 outbound but leave 587
+    // (STARTTLS, the standard mail-submission port) open.
     transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      requireTLS: true,
       auth: { user, pass },
+      connectionTimeout: 15000,
     });
   }
   return transporter;
@@ -73,7 +80,13 @@ async function sendViaResend(to: string, subject: string, html: string): Promise
 
 async function sendMail(to: string, subject: string, html: string): Promise<void> {
   try {
-    if (await sendViaGmail(to, subject, html)) return;
+    // Gmail failing (network blip, port blocked, etc.) should still fall
+    // through to Resend if it's configured — not just when Gmail is unset.
+    try {
+      if (await sendViaGmail(to, subject, html)) return;
+    } catch (gmailErr) {
+      console.error(`Gmail send failed for ${to}, trying Resend fallback:`, gmailErr);
+    }
     if (await sendViaResend(to, subject, html)) return;
     if (!warnedMissingConfig) {
       console.warn('No email provider configured (GMAIL_USER/GMAIL_APP_PASSWORD or RESEND_API_KEY) — email notifications are disabled.');
