@@ -318,7 +318,10 @@ export type RealtimeEventType =
   | 'PARKING_UPDATED'
   | 'RESIDENT_ENTRY'
   | 'BILL_CREATED'
-  | 'BILL_UPDATED';
+  | 'BILL_UPDATED'
+  | 'FUND_TRANSACTION_CREATED'
+  | 'FUND_TRANSACTION_DELETED'
+  | 'USER_DELETED';
 
 export interface RealtimeEvent {
   type: RealtimeEventType;
@@ -368,4 +371,27 @@ export interface ResidentEntry {
   vehicleNumber?: string;
   timestamp: string;
   loggedBy: string;
+}
+
+// ---- Society Fund / Treasury Ledger ----
+export type FundTransactionType = 'credit' | 'debit';
+export type FundTransactionCategory =
+  | 'Maintenance Collection'
+  | 'Renovation'
+  | 'Event / Program'
+  | 'Repairs & Maintenance'
+  | 'Utility Bills'
+  | 'Staff Salary'
+  | 'Donation'
+  | 'Other';
+
+export interface FundTransaction {
+  id: string;
+  type: FundTransactionType;
+  category: FundTransactionCategory | string;
+  amount: number;
+  description: string;
+  date: string; // e.g. "2026-09-30", when the money moved
+  recordedBy: string;
+  createdAt: string;
 }

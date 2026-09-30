@@ -7,7 +7,7 @@ import {
   User, Apartment, Visitor, Complaint, Notice, SOSAlert,
   MaintenanceBill, Amenity, AmenityBooking, ForumPost,
   SocietyStaff, SocietyStats, RealtimeEvent, PublicSuggestion,
-  SignupRequest, ParkingSlot, ResidentEntry
+  SignupRequest, ParkingSlot, ResidentEntry, FundTransaction
 } from '../src/types';
 
 // Demo seed accounts all share this password so the reviewer can log in immediately.
@@ -676,6 +676,45 @@ export class NivaraDatabase {
     }
   ];
 
+  // ---- Society Fund / Treasury Ledger ----
+  fundTransactions: FundTransaction[] = [
+    {
+      id: 'fund-1', type: 'credit', category: 'Maintenance Collection', amount: 285000,
+      description: 'Quarterly maintenance dues collected from residents (Jul-Sep 2026)',
+      date: '2026-07-05', recordedBy: 'Prof. Rajesh Kulkarni (Secretary)', createdAt: '2026-07-05T10:00:00.000Z',
+    },
+    {
+      id: 'fund-2', type: 'debit', category: 'Renovation', amount: 145000,
+      description: 'Lobby flooring and clubhouse ceiling renovation (Wing A & B)',
+      date: '2026-07-22', recordedBy: 'Prof. Rajesh Kulkarni (Secretary)', createdAt: '2026-07-22T14:30:00.000Z',
+    },
+    {
+      id: 'fund-3', type: 'debit', category: 'Event / Program', amount: 38000,
+      description: 'Independence Day celebration - decorations, flag hoisting, refreshments',
+      date: '2026-08-15', recordedBy: 'Prof. Rajesh Kulkarni (Secretary)', createdAt: '2026-08-15T09:00:00.000Z',
+    },
+    {
+      id: 'fund-4', type: 'debit', category: 'Repairs & Maintenance', amount: 22500,
+      description: 'Elevator (Wing C) motor servicing and replacement parts',
+      date: '2026-08-28', recordedBy: 'Prof. Rajesh Kulkarni (Secretary)', createdAt: '2026-08-28T11:15:00.000Z',
+    },
+    {
+      id: 'fund-5', type: 'debit', category: 'Event / Program', amount: 52000,
+      description: 'Ganesh Festival 2026 - mandap setup, pandit fees, cultural committee budget',
+      date: '2026-09-05', recordedBy: 'Prof. Rajesh Kulkarni (Secretary)', createdAt: '2026-09-05T08:00:00.000Z',
+    },
+    {
+      id: 'fund-6', type: 'debit', category: 'Utility Bills', amount: 61000,
+      description: 'Common area electricity + water bill (August 2026)',
+      date: '2026-09-10', recordedBy: 'Prof. Rajesh Kulkarni (Secretary)', createdAt: '2026-09-10T16:00:00.000Z',
+    },
+    {
+      id: 'fund-7', type: 'credit', category: 'Donation', amount: 15000,
+      description: 'Voluntary contribution from Wing B residents towards garden upgrade',
+      date: '2026-09-18', recordedBy: 'Prof. Rajesh Kulkarni (Secretary)', createdAt: '2026-09-18T12:00:00.000Z',
+    },
+  ];
+
   // ---- Persistence ----
   // If DATABASE_URL is set, the whole in-memory state is stored as one JSONB
   // row in Postgres (Neon) — real, durable storage that survives host
@@ -689,7 +728,7 @@ export class NivaraDatabase {
   private static readonly PERSISTED = [
     'users', 'apartments', 'visitors', 'complaints', 'notices', 'sosAlerts', 'bills',
     'amenities', 'amenityBookings', 'forumPosts', 'staff', 'suggestions',
-    'signupRequests', 'residentEntries', 'parkingSlots',
+    'signupRequests', 'residentEntries', 'parkingSlots', 'fundTransactions',
   ] as const;
 
   get dataFile(): string {

@@ -2,7 +2,7 @@ import {
   User, Apartment, Visitor, Complaint, Notice, SOSAlert,
   MaintenanceBill, Amenity, AmenityBooking, ForumPost,
   SocietyStaff, SocietyStats, PublicSuggestion, SignupRequest,
-  ParkingSlot, ResidentPass, ResidentEntry
+  ParkingSlot, ResidentPass, ResidentEntry, FundTransaction
 } from '../types';
 
 // Normally the frontend and API share an origin, so a relative path is enough.
@@ -74,6 +74,12 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+    });
+  },
+
+  async deleteUser(id: string): Promise<{ success: boolean }> {
+    return request<{ success: boolean }>(`${API_BASE}/admin/users/${id}`, {
+      method: 'DELETE',
     });
   },
 
@@ -507,6 +513,32 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+    });
+  },
+
+  // Society Fund / Treasury Ledger
+  async getFund(): Promise<{ balance: number; totalIn: number; totalOut: number; transactions: FundTransaction[] }> {
+    return request(`${API_BASE}/fund`);
+  },
+
+  async createFundTransaction(data: {
+    type: 'credit' | 'debit';
+    category: string;
+    amount: number;
+    description?: string;
+    date: string;
+    recordedBy?: string;
+  }): Promise<{ success: boolean; transaction: FundTransaction }> {
+    return request<{ success: boolean; transaction: FundTransaction }>(`${API_BASE}/fund/transactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteFundTransaction(id: string): Promise<{ success: boolean }> {
+    return request<{ success: boolean }>(`${API_BASE}/fund/transactions/${id}`, {
+      method: 'DELETE',
     });
   },
 };

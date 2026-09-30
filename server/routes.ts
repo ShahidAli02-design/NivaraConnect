@@ -7,7 +7,7 @@ import { createParkingAndPassRouter, releaseSlot } from './parkingAndPasses';
 import { createBillingRouter, normalizeBill } from './billingAdmin';
 import { sendAccountApprovedEmail } from './mailer';
 import { askSocietyAiAssistant, triageComplaintAi, draftNoticeAi } from './gemini';
-import { RealtimeEvent, Visitor, Complaint, SOSAlert, Notice, MaintenanceBill, AmenityBooking, ForumPost, User, SignupRequest } from '../src/types';
+import { RealtimeEvent, Visitor, Complaint, SOSAlert, Notice, MaintenanceBill, AmenityBooking, ForumPost, User, SignupRequest, FundTransaction } from '../src/types';
 
 // Never leak password hashes to the client
 function sanitizeUser(user: User) {
@@ -136,6 +136,30 @@ apiRouter.get('/realtime/stream', (req: Request, res: Response) => {
 // ----------------------------------------------------
 apiRouter.get('/auth/users', (req: Request, res: Response) => {
   res.json(db.users.map(sanitizeUser));
+});
+
+// Secretary-only (enforced client-side, like the rest of this app's
+// role gating — there's no session, auth is a plain email+password check).
+// Blocks deleting the last remaining Secretary account so the society can
+// never be left with zero admin access.
+apiRouter.delete('/admin/users/:id', (req: Request, res: Response) => {
+  const user = db.users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'Account not found.' });
+
+  if (user.role === 'admin' && db.users.filter(u => u.role === 'admin').length <= 1) {
+    return res.status(409).json({ error: 'Cannot delete the only remaining Secretary account.' });
+  }
+
+  db.users = db.users.filter(u => u.id !== req.params.id);
+  db.scheduleSave();
+
+  broadcastRealtimeEvent({
+    type: 'USER_DELETED',
+    payload: { id: user.id, name: user.name, role: user.role },
+    timestamp: new Date().toISOString(),
+  });
+
+  res.json({ success: true });
 });
 
 apiRouter.post('/auth/login', (req: Request, res: Response) => {
@@ -1034,4 +1058,71 @@ apiRouter.post('/suggestions', (req: Request, res: Response) => {
   });
 
   res.json({ success: true, suggestion: newSuggestion });
+});
+
+// ----------------------------------------------------
+// SOCIETY FUND / TREASURY LEDGER (Secretary-managed, resident-visible)
+// ----------------------------------------------------
+apiRouter.get('/fund', (req: Request, res: Response) => {
+  const transactions = [...(db.fundTransactions || [])].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const totalIn = transactions.filter(t => t.type === 'credit').reduce((sum, t) => sum + t.amount, 0);
+  const totalOut = transactions.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0);
+  res.json({ balance: totalIn - totalOut, totalIn, totalOut, transactions });
+});
+
+apiRouter.post('/fund/transactions', (req: Request, res: Response) => {
+  const { type, category, amount, description, date, recordedBy } = req.body;
+
+  if (type !== 'credit' && type !== 'debit') {
+    return res.status(400).json({ error: 'Transaction type must be "credit" or "debit".' });
+  }
+  if (!category || !String(category).trim()) {
+    return res.status(400).json({ error: 'A category is required.' });
+  }
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return res.status(400).json({ error: 'Amount must be a positive number.' });
+  }
+  if (!date || Number.isNaN(new Date(date).getTime())) {
+    return res.status(400).json({ error: 'A valid date is required.' });
+  }
+
+  const transaction: FundTransaction = {
+    id: `fund-${Date.now()}`,
+    type,
+    category: String(category).trim(),
+    amount: amt,
+    description: String(description || '').trim(),
+    date: new Date(date).toISOString().slice(0, 10),
+    recordedBy: recordedBy || 'Society Secretary',
+    createdAt: new Date().toISOString(),
+  };
+
+  if (!db.fundTransactions) db.fundTransactions = [];
+  db.fundTransactions.unshift(transaction);
+  db.scheduleSave();
+
+  broadcastRealtimeEvent({
+    type: 'FUND_TRANSACTION_CREATED',
+    payload: transaction,
+    timestamp: new Date().toISOString(),
+  });
+
+  res.json({ success: true, transaction });
+});
+
+apiRouter.delete('/fund/transactions/:id', (req: Request, res: Response) => {
+  const idx = (db.fundTransactions || []).findIndex(t => t.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Transaction not found.' });
+
+  const [removed] = db.fundTransactions.splice(idx, 1);
+  db.scheduleSave();
+
+  broadcastRealtimeEvent({
+    type: 'FUND_TRANSACTION_DELETED',
+    payload: removed,
+    timestamp: new Date().toISOString(),
+  });
+
+  res.json({ success: true });
 });
