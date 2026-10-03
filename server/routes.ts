@@ -917,23 +917,88 @@ apiRouter.get('/amenity-bookings', (req: Request, res: Response) => {
 });
 
 apiRouter.post('/amenity-bookings', (req: Request, res: Response) => {
-  const { amenityId, apartmentId, residentName, date, slot, paymentAmount } = req.body;
+  const { amenityId, amenityName, apartmentId, residentName, date, slot, timeSlot, guestsCount, purpose, paymentAmount, amount } = req.body;
   const amenity = db.amenities.find(a => a.id === amenityId);
   const newBooking: AmenityBooking = {
     id: `bk-${Date.now()}`,
     amenityId,
-    amenityName: amenity?.name || 'Amenity',
+    amenityName: amenityName || amenity?.name || 'Amenity',
     apartmentId,
     residentName,
     date,
-    slot,
-    status: 'Confirmed',
-    paymentAmount: Number(paymentAmount) || 0,
+    slot: slot || timeSlot,
+    timeSlot: timeSlot || slot,
+    guestsCount: guestsCount !== undefined ? Number(guestsCount) : undefined,
+    purpose,
+    // Every request waits for the Secretary — nothing is confirmed on submit.
+    status: 'Pending Approval',
+    paymentAmount: Number(paymentAmount ?? amount) || 0,
     createdAt: new Date().toISOString(),
   };
 
   db.amenityBookings.unshift(newBooking);
+
+  broadcastRealtimeEvent({
+    type: 'AMENITY_BOOKING_CREATED',
+    payload: newBooking,
+    timestamp: new Date().toISOString(),
+  });
+
   res.json({ success: true, booking: newBooking });
+});
+
+apiRouter.post('/amenity-bookings/:id/approve', (req: Request, res: Response) => {
+  const booking = db.amenityBookings.find(b => b.id === req.params.id);
+  if (!booking) return res.status(404).json({ error: 'Booking not found' });
+  if (booking.status !== 'Pending Approval') {
+    return res.status(409).json({ error: `Booking already ${booking.status}` });
+  }
+
+  const clash = db.amenityBookings.find(b =>
+    b.id !== booking.id &&
+    b.status === 'Confirmed' &&
+    b.amenityName === booking.amenityName &&
+    b.date === booking.date &&
+    (b.timeSlot || b.slot) === (booking.timeSlot || booking.slot)
+  );
+  if (clash) {
+    return res.status(409).json({ error: `Slot already confirmed for Flat ${clash.apartmentId}. Reject this request or ask for another slot.` });
+  }
+
+  booking.status = 'Confirmed';
+  booking.reviewedAt = new Date().toISOString();
+  booking.reviewedBy = req.body?.reviewedBy || 'Society Secretary';
+
+  broadcastRealtimeEvent({
+    type: 'AMENITY_BOOKING_UPDATED',
+    payload: booking,
+    timestamp: new Date().toISOString(),
+    targetApartmentId: booking.apartmentId,
+  });
+
+  res.json({ success: true, booking });
+});
+
+apiRouter.post('/amenity-bookings/:id/reject', (req: Request, res: Response) => {
+  const booking = db.amenityBookings.find(b => b.id === req.params.id);
+  if (!booking) return res.status(404).json({ error: 'Booking not found' });
+  if (booking.status !== 'Pending Approval') {
+    return res.status(409).json({ error: `Booking already ${booking.status}` });
+  }
+
+  booking.status = 'Rejected';
+  booking.reviewedAt = new Date().toISOString();
+  booking.reviewedBy = req.body?.reviewedBy || 'Society Secretary';
+  if (req.body?.reason) booking.rejectionReason = String(req.body.reason);
+
+  broadcastRealtimeEvent({
+    type: 'AMENITY_BOOKING_UPDATED',
+    payload: booking,
+    timestamp: new Date().toISOString(),
+    targetApartmentId: booking.apartmentId,
+  });
+
+  res.json({ success: true, booking });
 });
 
 // ----------------------------------------------------

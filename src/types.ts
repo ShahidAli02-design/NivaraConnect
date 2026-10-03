@@ -240,10 +240,13 @@ export interface AmenityBooking {
   timeSlot?: string;
   guestsCount?: number;
   purpose?: string;
-  status: 'Confirmed' | 'Pending Approval' | 'Cancelled';
+  status: 'Confirmed' | 'Pending Approval' | 'Rejected' | 'Cancelled';
   paymentAmount?: number;
   amount?: number;
   createdAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectionReason?: string;
 }
 
 export interface ForumPost {
@@ -321,7 +324,9 @@ export type RealtimeEventType =
   | 'BILL_UPDATED'
   | 'FUND_TRANSACTION_CREATED'
   | 'FUND_TRANSACTION_DELETED'
-  | 'USER_DELETED';
+  | 'USER_DELETED'
+  | 'AMENITY_BOOKING_CREATED'
+  | 'AMENITY_BOOKING_UPDATED';
 
 export interface RealtimeEvent {
   type: RealtimeEventType;

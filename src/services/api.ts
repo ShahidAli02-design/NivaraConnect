@@ -388,6 +388,22 @@ export const api = {
     });
   },
 
+  async approveAmenityBooking(id: string, reviewedBy?: string): Promise<{ success: boolean; booking: AmenityBooking }> {
+    return request<{ success: boolean; booking: AmenityBooking }>(`${API_BASE}/amenity-bookings/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewedBy }),
+    });
+  },
+
+  async rejectAmenityBooking(id: string, reviewedBy?: string, reason?: string): Promise<{ success: boolean; booking: AmenityBooking }> {
+    return request<{ success: boolean; booking: AmenityBooking }>(`${API_BASE}/amenity-bookings/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewedBy, reason }),
+    });
+  },
+
   // Forum
   async getForumPosts(): Promise<ForumPost[]> {
     return request<ForumPost[]>(`${API_BASE}/forum`);

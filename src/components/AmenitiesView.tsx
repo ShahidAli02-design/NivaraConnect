@@ -23,6 +23,17 @@ export const AmenitiesView: React.FC = () => {
   const [guestsCount, setGuestsCount] = useState(25);
   const [purpose, setPurpose] = useState('Birthday Celebration');
   const [isBooking, setIsBooking] = useState(false);
+  const [requestSentMsg, setRequestSentMsg] = useState('');
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  const isAdmin = currentUser.role === 'admin';
+
+  const statusBadge: Record<string, string> = {
+    'Confirmed': 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    'Pending Approval': 'bg-amber-100 text-amber-800 border-amber-300',
+    'Rejected': 'bg-rose-100 text-rose-800 border-rose-300',
+    'Cancelled': 'bg-slate-100 text-slate-600 border-slate-300',
+  };
 
   const amenitiesList = [
     {
@@ -94,11 +105,38 @@ export const AmenitiesView: React.FC = () => {
 
       triggerSound('success');
       setShowBookModal(false);
+      setRequestSentMsg('Request sent to the Secretary. Your booking will be confirmed only after approval.');
+      setTimeout(() => setRequestSentMsg(''), 6000);
       loadBookings();
     } catch (e) {
       console.error('Booking failed', e);
+      window.alert('Could not send the booking request. Please try again.');
     } finally {
       setIsBooking(false);
+    }
+  };
+
+  const handleReview = async (b: AmenityBooking, action: 'approve' | 'reject') => {
+    if (reviewingId) return;
+    let reason: string | undefined;
+    if (action === 'reject') {
+      const input = window.prompt(`Reject ${b.residentName}'s request for ${b.amenityName}? Optionally add a reason:`, '');
+      if (input === null) return;
+      reason = input.trim() || undefined;
+    }
+    setReviewingId(b.id);
+    try {
+      if (action === 'approve') {
+        await api.approveAmenityBooking(b.id, currentUser.name);
+      } else {
+        await api.rejectAmenityBooking(b.id, currentUser.name, reason);
+      }
+      triggerSound('success');
+      await loadBookings();
+    } catch (e: any) {
+      window.alert(e?.message || `Could not ${action} this booking.`);
+    } finally {
+      setReviewingId(null);
     }
   };
 
@@ -125,6 +163,12 @@ export const AmenitiesView: React.FC = () => {
           <Plus className="w-4 h-4" /> Book Facility
         </button>
       </div>
+
+      {requestSentMsg && (
+        <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs font-semibold text-amber-900 flex items-center gap-2">
+          <Clock className="w-4 h-4 shrink-0" /> {requestSentMsg}
+        </div>
+      )}
 
       {/* Amenities Showcase Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -173,25 +217,54 @@ export const AmenitiesView: React.FC = () => {
 
       {/* Active Society Bookings Schedule */}
       <div className="glass-card rounded-3xl border-amber-200/80 p-6 space-y-4">
-        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Upcoming Amenity Reservations</h3>
+        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+          {isAdmin ? 'Amenity Reservations — Approval Queue' : 'Amenity Reservations'}
+        </h3>
 
         <div className="divide-y divide-amber-100 text-xs">
+          {bookings.length === 0 && !loading && (
+            <div className="py-6 text-center text-slate-400">No reservations yet.</div>
+          )}
           {bookings.map((b) => (
             <div key={b.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <div className="font-bold text-slate-900 text-sm">{b.amenityName}</div>
                 <div className="text-slate-500 text-xs mt-0.5">
-                  Booked by <strong className="text-slate-800">{b.residentName}</strong> (Flat {b.apartmentId}) • {b.purpose}
+                  Requested by <strong className="text-slate-800">{b.residentName}</strong> (Flat {b.apartmentId})
+                  {b.purpose ? ` • ${b.purpose}` : ''}
+                  {b.guestsCount ? ` • ${b.guestsCount} guests` : ''}
                 </div>
+                {b.status === 'Rejected' && b.rejectionReason && (
+                  <div className="text-rose-600 text-[11px] mt-0.5">Reason: {b.rejectionReason}</div>
+                )}
               </div>
               <div className="flex items-center gap-4 text-right">
                 <div>
                   <div className="font-semibold text-slate-600">{b.date}</div>
-                  <div className="text-slate-400 font-mono text-[11px]">{b.timeSlot}</div>
+                  <div className="text-slate-400 font-mono text-[11px]">{b.timeSlot || b.slot}</div>
                 </div>
-                <span className="text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full">
-                  Confirmed
-                </span>
+                {isAdmin && b.status === 'Pending Approval' ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleReview(b, 'approve')}
+                      disabled={reviewingId === b.id}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl disabled:opacity-60"
+                    >
+                      {reviewingId === b.id ? '...' : 'Approve'}
+                    </button>
+                    <button
+                      onClick={() => handleReview(b, 'reject')}
+                      disabled={reviewingId === b.id}
+                      className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 text-xs font-semibold rounded-xl disabled:opacity-60"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : (
+                  <span className={`text-xs font-semibold border px-2.5 py-0.5 rounded-full ${statusBadge[b.status] || statusBadge['Cancelled']}`}>
+                    {b.status === 'Pending Approval' ? 'Awaiting Secretary' : b.status}
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -269,8 +342,11 @@ export const AmenitiesView: React.FC = () => {
                 />
               </div>
 
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800">
-                Booking for Flat <strong className="font-bold text-slate-900">{currentUser.apartmentId || 'A-402'}</strong> ({currentUser.name})
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-1">
+                <div>
+                  Booking for Flat <strong className="font-bold text-slate-900">{currentUser.apartmentId || 'A-402'}</strong> ({currentUser.name})
+                </div>
+                <div className="text-[11px]">Your request goes to the Secretary and is confirmed only once approved.</div>
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -286,7 +362,7 @@ export const AmenitiesView: React.FC = () => {
                   disabled={isBooking}
                   className="flex-1 py-2.5 btn-gold text-xs font-semibold rounded-xl"
                 >
-                  {isBooking ? 'Confirming...' : 'Confirm Reservation'}
+                  {isBooking ? 'Sending...' : 'Request Reservation'}
                 </button>
               </div>
             </form>

@@ -265,6 +265,25 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           });
         }
 
+        // 7c. Amenity booking requests: Secretary is told of new ones, resident of the decision
+        if (data.type === 'AMENITY_BOOKING_CREATED' && currentUser.role === 'admin') {
+          addNotification({
+            type: 'info',
+            title: 'New Amenity Booking Request',
+            message: `${data.payload?.residentName || 'A resident'} (Flat ${data.payload?.apartmentId}) requested ${data.payload?.amenityName} on ${data.payload?.date}.`,
+          });
+        }
+        if (data.type === 'AMENITY_BOOKING_UPDATED' && currentUser.role === 'resident' && data.payload?.apartmentId === currentUser.apartmentId) {
+          const approved = data.payload?.status === 'Confirmed';
+          addNotification({
+            type: approved ? 'success' : 'warning',
+            title: approved ? 'Amenity Booking Approved' : 'Amenity Booking Rejected',
+            message: approved
+              ? `${data.payload?.amenityName} on ${data.payload?.date} is confirmed.`
+              : `${data.payload?.amenityName} on ${data.payload?.date} was not approved${data.payload?.rejectionReason ? `: ${data.payload.rejectionReason}` : '.'}`,
+          });
+        }
+
         // 8. Signup Request Approved/Rejected
         if (data.type === 'SIGNUP_REQUEST_UPDATED' && data.payload?.status === 'approved') {
           addNotification({
